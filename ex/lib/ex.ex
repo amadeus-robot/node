@@ -26,17 +26,36 @@ defmodule Ama do
 
     ip4 = Application.fetch_env!(:ama, :udp_ipv4_tuple)
     port = Application.fetch_env!(:ama, :udp_port)
+    # Addition Of rpc Variables
     rpc_port = Application.fetch_env!(:ama, :rpc_port)
+    rpc_listen = Application.fetch_env!(:ama, :rpc_listen)
+    ip_tuple = rpc_listen
+           |> String.trim()
+           |> to_charlist()
+           |> :inet.parse_address()
+           |> case do
+                {:ok, tuple} -> tuple
+                {:error, _} -> raise "Invalid IP address format for rpc_listen: #{rpc_listen}"
+              end
+
+
     {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{id: NodeGen, start: {NodeGen, :start_link, [ip4, port]}, restart: :permanent})
 
-    # RPC Server hinzufügen
+    # Starting the Rpc Server
     {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{
       id: Ama.RpcServer,
-      start: {Plug.Cowboy, :http, [Ama.RpcServer, [], [port: rpc_port]]},
+      start: {Plug.Cowboy, :http, [
+        Ama.RpcServer, 
+        [], 
+        [
+          port: rpc_port,
+          ip: ip_tuple
+        ]
+      ]},
       restart: :permanent
     })
 
-    IO.puts "Started RPC server on port #{rpc_port}"
+    IO.puts "Started RPC server on port #{rpc_port} and ip #{rpc_listen}"
 
     supervisor
   end
