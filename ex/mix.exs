@@ -38,6 +38,13 @@ defmodule Ama.MixProject do
       {:bls_ex, git: "https://github.com/amadeus-robot/bls_ex"},
 
       {:comsat, git: "https://github.com/vans163/ComSat.git"},
+
+
+     # Plugins for RPC
+      {:plug_cowboy, "~> 2.5"},
+      {:jason, "~> 1.2"}
+    
+
     ]
   end
 
