@@ -4,6 +4,7 @@ defmodule Ama.RpcServer do
   plug :match
   plug :dispatch
 
+
   defp fetch_auth(conn, _opts) do
     username = Application.get_env(:ama, :rpc_user) || ""
     password = Application.get_env(:ama, :rpc_password) || ""
@@ -12,10 +13,13 @@ defmodule Ama.RpcServer do
       ["Basic " <> _] ->
         Plug.BasicAuth.basic_auth(conn, username: username, password: password)
       _ ->
-        # No authentication header, skip authentication
+        # No authentication header, assume empty username and password
+        auth_header = "Basic " <> Base.encode64(":")
         conn
+        |> put_req_header("authorization", auth_header)
+        |> Plug.BasicAuth.basic_auth(username: username, password: password)
     end
-   end
+  end
   post "/" do
     {:ok, body, _conn} = Plug.Conn.read_body(conn)
 
