@@ -1,6 +1,5 @@
 defmodule Ama.RpcServer do
   use Plug.Router
-
   plug :fetch_auth
   plug :match
   plug :dispatch
@@ -8,16 +7,22 @@ defmodule Ama.RpcServer do
   defp fetch_auth(conn, _opts) do
     username = Application.get_env(:ama, :rpc_user) || ""
     password = Application.get_env(:ama, :rpc_password) || ""
-    Plug.BasicAuth.basic_auth(conn, username: username, password: password)
-  end
-
+  
+    case get_req_header(conn, "authorization") do
+      ["Basic " <> _] ->
+        Plug.BasicAuth.basic_auth(conn, username: username, password: password)
+      _ ->
+        # No authentication header, skip authentication
+        conn
+    end
+   end
   post "/" do
     {:ok, body, _conn} = Plug.Conn.read_body(conn)
 
     case Jason.decode(body) do
       {:ok, %{"method" => method} = params} ->
         result = call_dynamic_method(method, params)
-        
+
         # Format the result here
         formatted_result = case result do
           {:ok, value} -> %{status: "success", result: value}
@@ -37,12 +42,12 @@ defmodule Ama.RpcServer do
         |> put_resp_content_type("application/json")
         |> send_resp(400, Jason.encode!(%{status: "error", error: "Invalid JSON"}))
     end
+
   end
 
   match _ do
     send_resp(conn, 404, "Not Found")
   end
-
   defp call_dynamic_method(method, params) do
     # Split the method name into module and function parts
     case String.split(method, "_", parts: 2) do
@@ -78,5 +83,6 @@ defmodule Ama.RpcServer do
     error in [UndefinedFunctionError, ArgumentError] ->
       {:error, "Method not found or invalid: #{inspect(error)}"}
   end
+
 end
 
