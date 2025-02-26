@@ -41,6 +41,9 @@ config :ama, :trainer_pk, pk
 config :ama, :trainer_sk, sk
 config :ama, :trainer_pop, BlsEx.sign!(sk, pk, BLS12AggSig.dst_pop())
 
+config :ama, :archival_node, System.get_env("ARCHIVALNODE") in ["true", "y", "yes"]
+config :ama, :autoupdate, System.get_env("AUTOUPDATE") in ["true", "y", "yes"]
+
 #TODO: enable this later
 #path = Path.join([work_folder, "trainer_challenge"])
 #if !File.exists?(path) do
