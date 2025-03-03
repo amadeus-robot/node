@@ -123,7 +123,7 @@ defmodule NodeState do
 
     if !exists? do
       %{error: :ok, entry: entry} = Entry.unpack_and_validate(term.entry_packed)
-      if Entry.height() > Fabric.rooted_tip_height() do
+      if Entry.height(entry) > Fabric.rooted_tip_height() do
         #IO.inspect {:insert, Base58.encode(entry.hash)}
         case Fabric.insert_entry(entry, seen_time) do
           :ok -> FabricCoordinatorGen.precalc_sols(entry)
