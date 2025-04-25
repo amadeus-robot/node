@@ -108,12 +108,12 @@ defmodule Consensus do
 
     def chain_nonce(pk) do
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
-        RocksDB.get("bic:base:nonce:#{pk}", %{db: db, cf: cf.contractstate, term: true})
+        RocksDB.get("bic:base:nonce:#{pk}", %{db: db, cf: cf.contractstate, to_integer: true})
     end
 
-    def chain_balance(pk) do
+    def chain_balance(pk, symbol \\ "AMA") do
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
-        RocksDB.get("bic:coin:balance:#{pk}", %{db: db, cf: cf.contractstate, term: true}) || 0
+        RocksDB.get("bic:coin:balance:#{pk}:#{symbol}", %{db: db, cf: cf.contractstate, to_integer: true}) || 0
     end
 
     def chain_tip() do

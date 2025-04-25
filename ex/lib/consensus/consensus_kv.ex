@@ -2,11 +2,11 @@ defmodule ConsensusKV do
     #TODO: explore verkle tree
     #TODO: explore radix trie
 
-    def kv_put(key, value \\ %{}) do
+    def kv_put(key, value \\ "") do
         db = Process.get({RocksDB, :ctx})
         {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
-            :not_found -> {%{}, false}
-            {:ok, value} -> {:erlang.binary_to_term(value), true}
+            :not_found -> {"", false}
+            {:ok, value} -> {value, true}
         end
         
         Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: value}])
@@ -16,17 +16,37 @@ defmodule ConsensusKV do
             Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :delete, key: key}])
         end
 
-        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, :erlang.term_to_binary(value, [:deterministic]))
+        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, value)
     end
 
-    def kv_merge(key, value \\ %{}) do
+    ## TOO COMPLEX a func for a strong typed 100% always correct lang sorry
+    #def kv_merge(key, value \\ "") do
+    #    db = Process.get({RocksDB, :ctx})
+    #    {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
+    #        :not_found -> {%{}, false}
+    #        {:ok, value} -> {:erlang.binary_to_term(value), true}
+    #    end
+    #    new_value = merge_nested(old_value, value)
+        
+    #    Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: new_value}])
+    #    if exists do
+    #        Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: old_value}])
+    #    else
+    #        Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :delete, key: key}])
+    #    end
+
+    #    :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, :erlang.term_to_binary(new_value, [:deterministic]))
+    #end
+
+    def kv_increment(key, value) do
         db = Process.get({RocksDB, :ctx})
         {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
-            :not_found -> {%{}, false}
-            {:ok, value} -> {:erlang.binary_to_term(value), true}
+            :not_found -> {"0", false}
+            {:ok, value} -> {value, true}
         end
-        new_value = merge_nested(old_value, value)
-        
+        new_value = :erlang.binary_to_integer(old_value)+:erlang.binary_to_integer(value)
+        new_value = :erlang.integer_to_binary(new_value)
+
         Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: new_value}])
         if exists do
             Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: old_value}])
@@ -34,24 +54,8 @@ defmodule ConsensusKV do
             Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :delete, key: key}])
         end
 
-        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, :erlang.term_to_binary(new_value, [:deterministic]))
-    end
-
-    def kv_increment(key, value) do
-        db = Process.get({RocksDB, :ctx})
-        {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
-            :not_found -> {0, false}
-            {:ok, value} -> {:erlang.binary_to_term(value), true}
-        end
-        
-        Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: old_value+value}])
-        if exists do
-            Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: old_value}])
-        else
-            Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :delete, key: key}])
-        end
-
-        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, :erlang.term_to_binary(old_value+value, [:deterministic]))
+        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, new_value)
+        new_value
     end
 
     def kv_delete(key) do
@@ -60,7 +64,7 @@ defmodule ConsensusKV do
             :not_found -> :ok
             {:ok, value} ->
                 Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :delete, key: key}])
-                Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: :erlang.binary_to_term(value)}])
+                Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: value}])
         end
         :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, key)
     end
@@ -69,19 +73,34 @@ defmodule ConsensusKV do
         db = Process.get({RocksDB, :ctx})
         case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
             :not_found -> nil
-            {:ok, value} -> :erlang.binary_to_term(value)
+            {:ok, value} -> value
         end
     end
 
     def kv_get_prev(prefix, key) do
         db = Process.get({RocksDB, :ctx})
         {:ok, it} = :rocksdb.transaction_iterator(db.rtx, db.cf.contractstate, [])
-        res = :rocksdb.iterator_move(it, {:seek_for_prev, "#{prefix}#{key}"})
+        res = :rocksdb.iterator_move(it, {:seek_for_prev, prefix <> key})
         case res do
-            {:ok, <<^prefix::binary, _::binary>>, value} -> :erlang.binary_to_term(value)
-            _ -> nil
+            {:ok, <<^prefix::binary, prev_key::binary>>, value} -> {prev_key, value}
+            _ -> {nil, nil}
         end
     end
+
+    def kv_get_next(prefix, key) do
+        db = Process.get({RocksDB, :ctx})
+        {:ok, it} = :rocksdb.transaction_iterator(db.rtx, db.cf.contractstate, [])
+        seek_string = prefix <> key
+        seek_res = :rocksdb.iterator_move(it, {:seek, seek_string})
+        seek_res = case seek_res do
+            {:ok, ^seek_string, _value} -> :rocksdb.iterator_move(it, :next)
+            other -> other
+        end
+        |> case do
+            {:ok, <<^prefix::binary, next_key::binary>>, value} -> {next_key, value}
+            _ -> {nil, nil}
+         end
+     end
 
     def kv_exists(key) do
         db = Process.get({RocksDB, :ctx})
@@ -100,7 +119,6 @@ defmodule ConsensusKV do
     defp kv_get_prefix_1(prefix, it, res, acc) do
         case res do
             {:ok, <<^prefix::binary, key::binary>>, value} ->
-                value = :erlang.binary_to_term(value)
                 res = :rocksdb.iterator_move(it, :next)
                 kv_get_prefix_1(prefix, it, res, acc ++ [{key, value}])
             {:error, :invalid_iterator} -> acc
@@ -117,6 +135,7 @@ defmodule ConsensusKV do
             Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: k, value: v}])
             :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, k)
         end)
+        :erlang.integer_to_binary(length(kvs))
     end
 
     def hash_mutations(m) do
@@ -130,8 +149,7 @@ defmodule ConsensusKV do
         |> Enum.each(fn(mut)->
             case mut.op do
                 :put -> 
-                    value = :erlang.term_to_binary(mut.value, [:deterministic])
-                    :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, value)
+                    :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, mut.value)
                 :delete -> 
                     :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, mut.key)
             end

@@ -11,7 +11,12 @@ defmodule RocksDB do
         end
         |> case do
             :not_found -> nil
-            {:ok, value} -> if opts[:term] do :erlang.binary_to_term(value, [:safe]) else value end
+            {:ok, value} ->
+                case do
+                    opts[:term] -> :erlang.binary_to_term(value, [:safe])
+                    opts[:to_integer] -> :erlang.binary_to_integer(value)
+                    true -> value
+                end
         end
     end
 

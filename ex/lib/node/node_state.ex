@@ -103,7 +103,7 @@ defmodule NodeState do
         if Consensus.chain_balance(trainer_pk) >= BIC.Coin.to_flat(1) do
           #IO.inspect {:peer_sent_sol, Base58.encode(istate.peer.signer)}
           tx_packed1 = TX.build(sk, "Epoch", "submit_sol", [term.sol])
-          tx_packed2 = TX.build(sk, "Coin", "transfer", [sol.computor, BIC.Coin.to_cents(100)])
+          tx_packed2 = TX.build(sk, "Coin", "transfer", ["AMA", sol.computor, BIC.Coin.to_cents(100) |> :erlang.integer_to_binary()])
           TXPool.insert([tx_packed1, tx_packed2])
           NodeGen.broadcast(:txpool, :trainers, [[tx_packed1, tx_packed2]])
         end

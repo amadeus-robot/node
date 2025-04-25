@@ -111,11 +111,4 @@ defmodule TXPool do
             end
         end)
     end
-
-    def test() do
-        sk = Application.fetch_env!(:ama, :trainer_sk)
-        pk = :crypto.strong_rand_bytes(48)
-        packed_tx = TX.build(sk, 110_000, "Coin", "transfer", [pk, 1])
-        TXPool.insert(packed_tx)
-    end
 end

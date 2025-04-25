@@ -146,7 +146,7 @@ defmodule SpecialMeetingGen do
     my_pk = Application.fetch_env!(:ama, :trainer_pk)
     my_sk = Application.fetch_env!(:ama, :trainer_sk)
     TX.build(my_sk, "Epoch", "slash_trainer", 
-      [st.epoch, st.malicious_pk, st.aggsig, bit_size(st.mask), Util.pad_bitstring_to_bytes(st.mask)],
+      ["#{st.epoch}", st.malicious_pk, st.aggsig, "#{bit_size(st.mask)}", Util.pad_bitstring_to_bytes(st.mask)],
       Consensus.chain_nonce(my_pk)+1)
   end
 
