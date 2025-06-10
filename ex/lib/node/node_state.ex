@@ -322,7 +322,7 @@ defmodule NodeState do
       entry_height <= Fabric.rooted_tip_height() -> nil
       length(entries) < 2 -> nil
       cur_score >= highest_score -> nil
-      true -> FabricSnapshot.backstep([cur_hash])
+      true -> FabricSnapshot.backstep_temporal([cur_hash])
     end
   end
 end
