@@ -236,11 +236,11 @@ defmodule Util do
 
     def get_bit(bin, i) when is_bitstring(bin) and is_integer(i) do
         n = bit_size(bin)
-  
+
         if i < 0 or i >= n do
           raise ArgumentError, "Bit index out of range: #{i} (size is #{n})"
         end
-  
+
         left_size = i
         # Pattern-match to extract the bit
         <<_left::size(left_size), bit::size(1), _right::bitstring>> = bin

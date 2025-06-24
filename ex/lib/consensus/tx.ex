@@ -21,7 +21,7 @@ defmodule TX do
       if !txu["tx"] do t else
           tx = Map.fetch!(txu, "tx")
           actions = Map.fetch!(tx, "actions")
-          actions = Enum.map(actions, fn %{"op"=> o, "contract"=> c, "function"=> f, "args"=> a} -> 
+          actions = Enum.map(actions, fn %{"op"=> o, "contract"=> c, "function"=> f, "args"=> a} ->
             %{op: o, contract: c, function: f, args: a}
           end)
           tx = %{signer: Map.fetch!(tx, "signer"), nonce: Map.fetch!(tx, "nonce"), actions: actions}

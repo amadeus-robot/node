@@ -1,7 +1,7 @@
 defmodule Attestation do
     @doc """
     attestation {
-        entry_hash: <>, 
+        entry_hash: <>,
         mutations_hash: <>,
         signer: <>,
         signature: <entry_hash,mutations_hash>,
@@ -43,9 +43,9 @@ defmodule Attestation do
         a = :erlang.binary_to_term(attestation_packed, [:safe])
         |> Map.take([:entry_hash, :mutations_hash, :signer, :signature])
         if attestation_packed != :erlang.term_to_binary(a, [:deterministic]), do: throw %{error: :not_deterministicly_encoded}
-        
+
         res = validate(a)
-        cond do 
+        cond do
             res.error != :ok -> throw res
             true -> %{error: :ok, attestation: a}
         end

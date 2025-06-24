@@ -7,7 +7,7 @@ defmodule BLS12AggSig do
     @dst_tx "AMADEUS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_TX_"
     @dst_motion "AMADEUS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_MOTION_"
     @dst_node "AMADEUS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NODE_"
-    
+
     def dst(), do: @dst
     def dst_pop(), do: @dst_pop
     def dst_att(), do: @dst_att

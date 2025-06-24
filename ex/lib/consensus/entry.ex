@@ -42,7 +42,7 @@ defmodule Entry do
         txs_hash = Blake3.hash(Enum.join(entry_unpacked.txs))
         entry_unpacked = put_in(entry_unpacked, [:header_unpacked, :txs_hash], txs_hash)
         h = :erlang.term_to_binary(entry_unpacked.header_unpacked, [:deterministic])
-        
+
         hash = Blake3.hash(h)
         signature = BlsEx.sign!(sk, hash, BLS12AggSig.dst_entry())
         %{
@@ -58,7 +58,7 @@ defmodule Entry do
         try do
 
         entry_size = Application.fetch_env!(:ama, :entry_size)
-        if byte_size(entry_packed) >= entry_size, do: throw(%{error: :too_large})        
+        if byte_size(entry_packed) >= entry_size, do: throw(%{error: :too_large})
         e = :erlang.binary_to_term(entry_packed, [:safe])
         |> Map.take([:header, :txs, :hash, :signature, :mask])
         if entry_packed != :erlang.term_to_binary(e, [:deterministic]), do: throw %{error: :not_deterministicly_encoded}
@@ -70,7 +70,7 @@ defmodule Entry do
 
         res_sig = validate_signature(e.header, e.signature, e.header_unpacked.signer, e[:mask])
         res_entry = validate_entry(e)
-        cond do 
+        cond do
             res_sig.error != :ok -> throw res_sig
             res_entry.error != :ok -> throw res_entry
             true -> %{error: :ok, entry: e}
@@ -88,7 +88,7 @@ defmodule Entry do
             header_unpacked = :erlang.binary_to_term(header, [:safe])
             trainers = Consensus.trainers_for_height(header_unpacked.height)
             trainers_signed = BLS12AggSig.unmask_trainers(trainers, mask)
-            
+
             aggpk = BlsEx.aggregate_public_keys!(trainers_signed)
             if !BlsEx.verify?(aggpk, signature, hash, BLS12AggSig.dst_entry()), do: throw(%{error: :invalid_signature})
         else

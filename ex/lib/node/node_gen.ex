@@ -12,7 +12,7 @@ defmodule NodeGen do
     state = %{
       ns: NodeState.init()
     }
-    
+
     :erlang.send_after(1000, self(), :tick)
     :erlang.send_after(1000, self(), :tick_ping)
     {:ok, state}

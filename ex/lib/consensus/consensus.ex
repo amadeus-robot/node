@@ -24,7 +24,7 @@ defmodule Consensus do
         entry = Fabric.entry_by_hash(c.entry_hash)
         if !entry, do: throw(%{error: :invalid_entry})
         if entry.header_unpacked.height > Consensus.chain_height(), do: throw(%{error: :too_far_in_future})
-        
+
         #TODO: race here if entry is not proced
         trainers = trainers_for_height(Entry.height(entry))
         score = BLS12AggSig.score(trainers, c.mask)
@@ -90,7 +90,7 @@ defmodule Consensus do
                 signed = BLS12AggSig.unmask_trainers(trainers, mask)
                 trainer in signed
             end)
-            res == [] 
+            res == []
         end
     end
 
@@ -330,7 +330,7 @@ defmodule Consensus do
         attestation = Attestation.sign(next_entry.hash, mutations_hash)
         attestation_packed = Attestation.pack(attestation)
         :ok = :rocksdb.transaction_put(rtx, cf.my_attestation_for_entry, next_entry.hash, attestation_packed)
-        
+
         pk = Application.fetch_env!(:ama, :trainer_pk)
         trainers = trainers_for_height(Entry.height(next_entry), %{rtx: rtx, cf: cf})
         is_trainer = pk in trainers
@@ -366,13 +366,13 @@ defmodule Consensus do
         end
 
         :ok = :rocksdb.transaction_commit(rtx)
-        
+
         ap = if is_trainer do
             #TODO: not ideal in super tight latency constrains but its 1 line and it works
             send(FabricCoordinatorGen, {:add_attestation, attestation})
             attestation_packed
         end
-        
+
         %{error: :ok, attestation_packed: ap, mutations_hash: mutations_hash, logs: l, muts: m}
     end
 

@@ -8,10 +8,10 @@ defmodule ConsensusKV do
             :not_found -> {"", false}
             {:ok, value} -> {value, true}
         end
-        
+
         value = if opts[:term] do :erlang.term_to_binary(value, [:deterministic]) else value end
         value = if opts[:to_integer] do :erlang.integer_to_binary(value) else value end
-        
+
         Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: value}])
         if exists do
             Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: old_value}])
@@ -30,7 +30,7 @@ defmodule ConsensusKV do
     #        {:ok, value} -> {:erlang.binary_to_term(value), true}
     #    end
     #    new_value = merge_nested(old_value, value)
-        
+
     #    Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :put, key: key, value: new_value}])
     #    if exists do
     #        Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :put, key: key, value: old_value}])
@@ -43,7 +43,7 @@ defmodule ConsensusKV do
 
     def kv_increment(key, value) do
         value = if is_integer(value) do :erlang.integer_to_binary(value) else value end
-        
+
         db = Process.get({RocksDB, :ctx})
         {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
             :not_found -> {"0", false}
@@ -194,9 +194,9 @@ defmodule ConsensusKV do
         Enum.reverse(m_rev)
         |> Enum.each(fn(mut)->
             case mut.op do
-                :put -> 
+                :put ->
                     :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, mut.value)
-                :delete -> 
+                :delete ->
                     :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, mut.key)
             end
         end)

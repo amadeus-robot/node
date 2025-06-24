@@ -95,7 +95,7 @@ defmodule TXPool do
         :ets.tab2list(TXPool)
         |> case do
             [] -> nil
-            txs -> 
+            txs ->
                 Enum.take(txs, amount)
                 |> Enum.map(fn{_, txu}-> TX.pack(txu) end)
         end

@@ -68,7 +68,7 @@ defmodule FabricSnapshot do
         height_padded = String.pad_leading("#{height}", 12, "0")
         IO.puts "quick-syncing chain snapshot height #{height}.. this can take a while"
         url = "https://snapshots.amadeus.bot/#{height_padded}.zip"
-        
+
         cwd_dir = Path.join(Application.fetch_env!(:ama, :work_folder), "updates_tmp/")
         :ok = File.mkdir_p!(cwd_dir)
         file = Path.join(cwd_dir, height_padded<>".zip")

@@ -76,11 +76,11 @@ defmodule NodeGenSocketGen do
               peer = %{ip: peer_ip, signer: pk, version: version}
               NodeState.handle(msg.op, %{peer: peer}, msg)
 
-            %{error: :signature, pk: pk, signature: signature, ts_nano: ts_nano, shard_index: shard_index, shard_total: shard_total, 
-              version: version, original_size: original_size, payload: payload} 
+            %{error: :signature, pk: pk, signature: signature, ts_nano: ts_nano, shard_index: shard_index, shard_total: shard_total,
+              version: version, original_size: original_size, payload: payload}
             ->
               peer_ip = Tuple.to_list(ip) |> Enum.join(".")
-              
+
               gen = NodeGen.get_reassembly_gen(pk, ts_nano)
               send(gen, {:add_shard, {pk, ts_nano, shard_total}, {peer_ip, version, nil, signature, shard_index, original_size}, payload})
 
@@ -99,7 +99,7 @@ defmodule NodeGenSocketGen do
               peer = %{ip: peer_ip, signer: pk, version: version}
               NodeState.handle(msg.op, %{peer: peer}, msg)
 
-            %{error: :encrypted, pk: pk, ts_nano: ts_nano, shard_index: shard_index, shard_total: shard_total, 
+            %{error: :encrypted, pk: pk, ts_nano: ts_nano, shard_index: shard_index, shard_total: shard_total,
               version: version, original_size: original_size, payload: payload} ->
               shared_secret = NodePeers.get_shared_secret(pk)
 

@@ -6,7 +6,7 @@ defmodule Fabric do
 
     def init() do
         workdir = Application.fetch_env!(:ama, :work_folder)
-        
+
         path = Path.join([workdir, "db/fabric/"])
         File.mkdir_p!(path)
 
@@ -321,7 +321,7 @@ defmodule Fabric do
         if consensus.score >= 0.67 and consensus.score > (oldScore||0) do
             %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
             {:ok, rtx} = :rocksdb.transaction(db, [])
-            
+
             consensuses = RocksDB.get(entry_hash, %{rtx: rtx, cf: cf.consensus_by_entryhash, term: true}) || %{}
             consensuses = put_in(consensuses, [consensus.mutations_hash], %{mask: consensus.mask, aggsig: consensus.aggsig})
             :ok = :rocksdb.transaction_put(rtx, cf.consensus_by_entryhash, entry_hash, :erlang.term_to_binary(consensuses, [:deterministic]))

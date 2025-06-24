@@ -20,7 +20,7 @@ defmodule FabricCoordinatorGen do
         if isSol do
           txu = TX.unpack(tx_packed)
           [%{args: [sol]}] = txu.tx.actions
-          
+
           :erlang.spawn(fn()->
             isVerified = :ets.lookup_element(SOLVerifyCache, sol, 2, nil)
             if !isVerified do

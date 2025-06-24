@@ -93,7 +93,7 @@ defmodule EntryGenesis do
     def attestation() do
         @attestation
     end
-    
+
     def get() do
         @genesis_entry
     end

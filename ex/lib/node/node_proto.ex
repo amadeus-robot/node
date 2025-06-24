@@ -136,7 +136,7 @@ defmodule NodeProto do
     end
   end
 
-  def unpack_message_v2(<<"AMA", version_3byte::3-binary, 0::7, 1::1, pk::48-binary, signature::96-binary, 
+  def unpack_message_v2(<<"AMA", version_3byte::3-binary, 0::7, 1::1, pk::48-binary, signature::96-binary,
     shard_index::16, shard_total::16, ts_n::64, original_size::32, msg_compressed_or_shard::binary>>) do
     try do
       if pk == Application.fetch_env!(:ama, :trainer_pk), do: throw(%{error: :msg_to_self})
@@ -175,7 +175,7 @@ defmodule NodeProto do
   def pack_message(msg) do
     pk = Application.fetch_env!(:ama, :trainer_pk)
     sk = Application.fetch_env!(:ama, :trainer_sk)
-    
+
     #TODO: enable later if needed
     #challenge = Application.fetch_env!(:ama, :challenge)
     #challenge_signature = Application.fetch_env!(:ama, :challenge_signature)
@@ -210,7 +210,7 @@ defmodule NodeProto do
       if msg.signer == Application.fetch_env!(:ama, :trainer_pk), do: throw(%{error: :msg_to_self})
 
       %{error: :old, msg: msg}
-    catch 
+    catch
       throw,r -> %{error: r}
       e,r -> %{error: e, reason: r}
     end
@@ -218,7 +218,7 @@ defmodule NodeProto do
 
   #useless key to prevent udp noise
   def aes256key do
-    <<0, 6, 2, 94, 44, 225, 200, 37, 227, 180, 114, 230, 230, 219, 177, 28, 
+    <<0, 6, 2, 94, 44, 225, 200, 37, 227, 180, 114, 230, 230, 219, 177, 28,
     80, 19, 72, 13, 196, 129, 81, 216, 161, 36, 177, 212, 199, 6, 169, 26>>
   end
 
