@@ -177,4 +177,10 @@ defmodule RocksDB do
             #:ok = :rocksdb.compact_range(db, cf, <<"user:0000">>, <<"user:9999">>, [])
         end)
     end
+
+    def get_lru(db) do
+      {:ok, cap} = :rocksdb.get_property(db, "rocksdb.block-cache-capacity")
+      {:ok, used} = :rocksdb.get_property(db, "rocksdb.block-cache-usage")
+      {:erlang.binary_to_integer(used), :erlang.binary_to_integer(cap)}
+    end
 end

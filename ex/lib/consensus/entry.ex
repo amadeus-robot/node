@@ -86,10 +86,13 @@ defmodule Entry do
         hash = Blake3.hash(header)
         if mask do
             header_unpacked = :erlang.binary_to_term(header, [:safe])
+
             trainers = Consensus.trainers_for_height(header_unpacked.height)
             trainers_signed = BLS12AggSig.unmask_trainers(trainers, mask)
+            if nil in trainers_signed, do: throw(%{error: :wrong_epoch})
 
             aggpk = BlsEx.aggregate_public_keys!(trainers_signed)
+
             if !BlsEx.verify?(aggpk, signature, hash, BLS12AggSig.dst_entry()), do: throw(%{error: :invalid_signature})
         else
             if !BlsEx.verify?(signer, signature, hash, BLS12AggSig.dst_entry()), do: throw(%{error: :invalid_signature})

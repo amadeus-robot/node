@@ -1,7 +1,7 @@
 defmodule Fabric do
     @args [
         {:target_file_size_base, 2 * 1024 * 1024 * 1024}, #2GB
-        {:target_file_size_multiplier, 2}
+        {:target_file_size_multiplier, 2},
     ]
 
     def init() do
@@ -10,11 +10,23 @@ defmodule Fabric do
         path = Path.join([workdir, "db/fabric/"])
         File.mkdir_p!(path)
 
+        #{:ok, lru_cache} = :rocksdb.new_lru_cache(2 * 1024 * 1024 * 1024)
         {:ok, db_ref, cf_ref_list} = :rocksdb.open_optimistic_transaction_db('#{path}',
           [
             {:create_if_missing, true}, {:create_missing_column_families, true},
             {:target_file_size_base, 2 * 1024 * 1024 * 1024}, #2GB
-            {:target_file_size_multiplier, 2}
+            {:target_file_size_multiplier, 2},
+            {:merge_operator, {:bitset_merge_operator, SolBloom.page_size()}},
+
+            #{:table_factory,
+            #  {:block_based_table_factory, [{:block_cache_size, 2 * 1024 * 1024 * 1024},{:cache_index_and_filter_blocks, true}]}
+            #}
+            #{:block_based_table_options, [{:block_cache, lru_cache}]},
+            #{:table_factory,
+            #  {:block_based_table_factory, [
+            #      {:block_cache_size, 2 * 1024 * 1024 * 1024} #2G LRU cache
+            #  ]}
+            #}
           ],
           [
             {'default', @args},
@@ -35,7 +47,7 @@ defmodule Fabric do
             {'consensus', @args},
             {'consensus_by_entryhash|Map<mutationshash,consensus>', @args},
 
-            {'contractstate', @args},
+            {'contractstate', @args}, # ++ [{:table_factory_block_cache_size, 2 * 1024 * 1024 * 1024}]
             {'muts', @args},
             {'muts_rev', @args},
 

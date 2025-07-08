@@ -21,6 +21,15 @@ defmodule API.Epoch do
         end
     end
 
+    def get_pop(pk) do
+      pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
+      API.Contract.get("bic:epoch:pop:#{pk}")
+      |> case do
+        nil -> nil
+        addr -> Base58.encode(addr)
+      end
+    end
+
     def score() do
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
         RocksDB.get_prefix("bic:epoch:solutions_count:", %{db: db, cf: cf.contractstate, to_integer: true})

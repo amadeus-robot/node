@@ -24,7 +24,8 @@ defmodule NodeState do
       term = %{temporal: Map.put(temporal, :hash, hasht), rooted: Map.put(rooted, :hash, hashr), ts_m: term.ts_m}
       send(NodeGen, {:handle_sync, :ping_ns, istate, term})
     catch
-      e,r-> IO.inspect {:error_ping, e, r, term, istate.peer.ip}
+      e,{:badmatch, %{error: :wrong_epoch}} -> nil
+      e,r -> IO.inspect {:error_ping, e, r, term, istate.peer.ip}
     end
   end
   def handle(:ping_ns, istate, term) do
@@ -90,7 +91,7 @@ defmodule NodeState do
     trainer_pk = Application.fetch_env!(:ama, :trainer_pk)
     cond do
       sol.epoch != Consensus.chain_epoch() ->
-        IO.inspect {:broadcasted_sol_invalid_epoch, sol.epoch, Consensus.chain_epoch()}
+        #IO.inspect {:broadcasted_sol_invalid_epoch, sol.epoch, Consensus.chain_epoch()}
         nil
       !BIC.Sol.verify(term.sol) ->
         IO.inspect {:peer_sent_invalid_sol, :TODO_block_malicious_peer}
