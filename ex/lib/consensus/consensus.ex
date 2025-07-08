@@ -274,6 +274,7 @@ defmodule Consensus do
             :entry_epoch => div(next_entry.header_unpacked.height, 100_000),
             :entry_vr => next_entry.header_unpacked.vr,
             :entry_dr => next_entry.header_unpacked.dr,
+            :tx_index => 0,
             :tx_signer => nil, #env.txu.tx.signer,
             :tx_nonce => nil, #env.txu.tx.nonce,
             :tx_hash => nil, #env.txu.hash,
@@ -306,9 +307,9 @@ defmodule Consensus do
         txus = Enum.map(next_entry.txs, & TX.unpack(&1))
         {m_pre, m_rev_pre} = BIC.Base.call_txs_pre_parallel(mapenv, txus)
 
-        {m, m_rev, l} = Enum.reduce(txus, {m_pre, m_rev_pre, []}, fn(txu, {m, m_rev, l})->
+        {m, m_rev, l} = Enum.reduce(Enum.with_index(txus), {m_pre, m_rev_pre, []}, fn({txu, tx_idx}, {m, m_rev, l})->
             #ts_m = :os.system_time(1000)
-            mapenv = Map.merge(mapenv, %{tx_signer: txu.tx.signer, tx_nonce: txu.tx.nonce, tx_hash: txu.hash,
+            mapenv = Map.merge(mapenv, %{tx_index: tx_idx, tx_signer: txu.tx.signer, tx_nonce: txu.tx.nonce, tx_hash: txu.hash,
                 account_origin: txu.tx.signer, account_caller: txu.tx.signer})
             {m3, m_rev3, m3_gas, m3_gas_rev, result} = BIC.Base.call_tx_actions(mapenv, txu)
             #IO.inspect {:call_tx, :os.system_time(1000) - ts_m}

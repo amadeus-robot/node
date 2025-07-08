@@ -8,6 +8,7 @@ defmodule BIC.Contract do
             Map.merge(env, %{
                 readonly: true,
                 seed: :crypto.strong_rand_bytes(32),
+                tx_index: 0,
                 tx_signer: :crypto.strong_rand_bytes(48),
                 tx_nonce: :os.system_time(:nanosecond),
                 tx_hash: :crypto.strong_rand_bytes(32),
