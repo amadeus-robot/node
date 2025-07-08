@@ -26,6 +26,9 @@ defmodule BIC.Epoch do
     def circulating(epoch) do circulating_without_burn(epoch) - BIC.Coin.burn_balance() end
 
     def call(:submit_sol, env, [sol]) do
+      if env.entry_epoch >= 198 do
+        call(:submit_sol2, env, [sol])
+      else
         hash = Blake3.hash(sol)
         if kv_exists("bic:epoch:solutions:#{hash}"), do: throw(%{error: :sol_exists})
 
@@ -40,6 +43,27 @@ defmodule BIC.Epoch do
         end
         kv_put("bic:epoch:solutions:#{hash}")
         kv_increment("bic:epoch:solutions_count:#{su.pk}", 1)
+      end
+    end
+
+    def call(:submit_sol2, env, [sol]) do
+        hash = Blake3.hash(sol)
+        bloom_results = SolBloom.segs(hash)
+        |> Enum.map(fn %{page: page, bit_offset: off} ->
+          kv_set_bit("bic:epoch:solbloom:#{page}", off)
+        end)
+        if !Enum.any?(bloom_results), do: throw(%{error: :sol_exists})
+
+        su = BIC.Sol.unpack(sol)
+        if su.epoch != env.entry_epoch, do: throw(%{error: :invalid_epoch})
+
+        if !BIC.Sol.verify(sol, hash), do: throw(%{error: :invalid_sol})
+
+        if !kv_exists("bic:epoch:pop:#{su.pk}") do
+            if !BlsEx.verify?(su.pk, su.pop, su.pk, BLS12AggSig.dst_pop()), do: throw(%{error: :invalid_pop})
+            kv_put("bic:epoch:pop:#{su.pk}", su.pop)
+        end
+        kv_increment("bic:epoch:solutions_count:#{su.pk}", 1)
     end
 
     def call(:set_emission_address, env, [address]) do
@@ -48,6 +72,9 @@ defmodule BIC.Epoch do
     end
 
     def next(env) do
+      if env.entry_epoch >= 198 do
+        next2(env)
+      else
         epoch_fin = env.entry_epoch
         epoch_next = epoch_fin + 1
         top_x = cond do
@@ -86,6 +113,68 @@ defmodule BIC.Epoch do
         end)
 
         kv_clear("bic:epoch:solutions:")
+        kv_clear("bic:epoch:solutions_count:")
+
+        new_trainers = if length(leaders) == 0 do trainers else
+            leaders = leaders
+            |> Enum.take(top_x)
+            |> Enum.map(fn{pk, _}-> pk end)
+
+            #TODO: Even may not reach consensus in netsplit/malicicous net
+            #TODO: but doubleslotting can potentially break other logic
+            #if rem(length(leaders), 2) == 0 do
+            #   leaders ++ [hd(leaders)]
+            #else
+            #   leaders
+            #end
+        end
+        new_trainers = Enum.shuffle(new_trainers)
+        kv_put("bic:epoch:trainers:#{epoch_next}", new_trainers, %{term: true})
+
+        height = String.pad_leading("#{env.entry_height+1}", 12, "0")
+        kv_put("bic:epoch:trainers:height:#{height}", new_trainers, %{term: true})
+      end
+    end
+
+    def next2(env) do
+        epoch_fin = env.entry_epoch
+        epoch_next = epoch_fin + 1
+        top_x = cond do
+            epoch_next > 38 -> 99
+            epoch_next > 3 -> 19
+            true -> 9
+        end
+
+        # slash sols for malicious trainers
+        removedTrainers = kv_get("bic:epoch:trainers:removed:#{epoch_fin}", %{term: true}) || []
+        leaders = kv_get_prefix("bic:epoch:solutions_count:", %{to_integer: true})
+        |> Enum.reduce(%{}, fn({pk, count}, acc)->
+            if pk in removedTrainers do
+                acc
+            else
+                Map.put(acc, pk, count)
+            end
+        end)
+        |> Enum.sort_by(& {elem(&1,1), elem(&1,0)}, :desc)
+
+        trainers = kv_get("bic:epoch:trainers:#{epoch_fin}", %{term: true})
+        trainers_to_recv_emissions = leaders
+        |> Enum.filter(& elem(&1,0) in trainers)
+        |> Enum.take(top_x)
+
+        total_sols = Enum.reduce(trainers_to_recv_emissions, 0, & &2 + elem(&1,1))
+        Enum.each(trainers_to_recv_emissions, fn({trainer, trainer_sols})->
+            coins = div(trainer_sols * epoch_emission(epoch_fin), total_sols)
+
+            emission_address = kv_get("bic:epoch:emission_address:#{trainer}")
+            if emission_address do
+                kv_increment("bic:coin:balance:#{emission_address}:AMA", coins)
+            else
+                kv_increment("bic:coin:balance:#{trainer}:AMA", coins)
+            end
+        end)
+
+        kv_clear("bic:epoch:solbloom:")
         kv_clear("bic:epoch:solutions_count:")
 
         new_trainers = if length(leaders) == 0 do trainers else

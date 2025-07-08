@@ -184,6 +184,29 @@ defmodule ConsensusKV do
         end
     end
 
+    def kv_set_bit(key, bit_idx) do
+      db = Process.get({RocksDB, :ctx})
+      {old_value, exists} = case :rocksdb.transaction_get(db.rtx, db.cf.contractstate, key, []) do
+          :not_found -> {<<0::size(SolBloom.page_size())>>, false}
+          {:ok, value} -> {value, true}
+      end
+
+      << left::size(bit_idx), old_bit::size(1), right::bitstring >> = old_value
+      if old_bit == 1 do
+        false
+      else
+        Process.put(:mutations, Process.get(:mutations, []) ++ [%{op: :set_bit, key: key, value: bit_idx, bloomsize: SolBloom.page_size()}])
+        if exists do
+            Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :clear_bit, key: key, value: bit_idx}])
+        else
+            Process.put(:mutations_reverse, Process.get(:mutations_reverse, []) ++ [%{op: :delete, key: key}])
+        end
+        new_value = << left::size(bit_idx), 1::size(1), right::bitstring >>
+        :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, key, new_value)
+        true
+      end
+    end
+
     def hash_mutations(m) do
         :erlang.term_to_binary(m, [:deterministic])
         |> Blake3.hash()
@@ -198,6 +221,11 @@ defmodule ConsensusKV do
                     :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, mut.value)
                 :delete ->
                     :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, mut.key)
+                :clear_bit ->
+                    old_value = :rocksdb.transaction_get(db.rtx, db.cf.contractstate, mut.key, [])
+                    << left::size(mut.value), _old_bit::size(1), right::bitstring >> = old_value
+                    new_value = << left::size(mut.value), 0::size(1), right::bitstring >>
+                    :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, new_value)
             end
         end)
     end
