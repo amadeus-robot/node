@@ -24,6 +24,14 @@ defmodule Offline do
     Consensus.apply_entry(entry)
   end
 
+  def produce_entry(clean_txpool \\ true) do
+    entry = Consensus.produce_entry(Consensus.chain_height()+1)
+    Fabric.insert_entry(entry, :os.system_time(1000))
+    result = Consensus.apply_entry(entry)
+    clean_txpool && TXPool.purge_stale()
+    result
+  end
+
   def state(pk \\ nil) do
 
   end
