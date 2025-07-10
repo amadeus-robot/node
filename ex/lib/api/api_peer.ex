@@ -25,6 +25,18 @@ defmodule API.Peer do
         end)
     end
 
+    def version_ratio_all() do
+        all = all()
+        all
+        |> Enum.reduce(%{}, fn([version | _], acc)->
+            Map.put(acc, version, Map.get(acc, version, 0) + 1)
+        end)
+        |> Enum.sort_by(& elem(&1, 1), :desc)
+        |> Enum.map(fn({version, cnt})->
+            {version, cnt, Float.round(cnt/length(all), 3)}
+        end)
+    end
+
     def all_for_web() do
         trainers = Consensus.trainers_for_height(Consensus.chain_height()+1)
         NodePeers.all()

@@ -50,7 +50,7 @@ config :ama, :trainer_pop, BlsEx.sign!(sk, pk, BLS12AggSig.dst_pop())
 config :ama, :archival_node, System.get_env("ARCHIVALNODE") in ["true", "y", "yes"]
 config :ama, :autoupdate, System.get_env("AUTOUPDATE") in ["true", "y", "yes"]
 config :ama, :computor_type, (case System.get_env("COMPUTOR") do nil -> nil; "trainer" -> :trainer; _ -> :default end)
-config :ama, :snapshot_height, (System.get_env("SNAPSHOT_HEIGHT") || "19100414") |> :erlang.binary_to_integer()
+config :ama, :snapshot_height, (System.get_env("SNAPSHOT_HEIGHT") || "19900088") |> :erlang.binary_to_integer()
 
 Path.join(work_folder, "ex/")
 |> Path.join("**/*.ex")
