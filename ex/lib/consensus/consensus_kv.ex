@@ -222,7 +222,7 @@ defmodule ConsensusKV do
                 :delete ->
                     :ok = :rocksdb.transaction_delete(db.rtx, db.cf.contractstate, mut.key)
                 :clear_bit ->
-                    old_value = :rocksdb.transaction_get(db.rtx, db.cf.contractstate, mut.key, [])
+                    {:ok, old_value} = :rocksdb.transaction_get(db.rtx, db.cf.contractstate, mut.key, [])
                     << left::size(mut.value), _old_bit::size(1), right::bitstring >> = old_value
                     new_value = << left::size(mut.value), 0::size(1), right::bitstring >>
                     :ok = :rocksdb.transaction_put(db.rtx, db.cf.contractstate, mut.key, new_value)
