@@ -5,6 +5,14 @@ defmodule BIC.Epoch do
     @epoch_emission_fixed BIC.Coin.to_flat(100_000)
     @epoch_interval 100_000
 
+    @a 23_072_960_000
+    @c 1110.573766
+    @start_epoch 500
+
+    def epoch_emission(epoch) when epoch > 499 do
+      floor(0.5 * @a / :math.pow(epoch - @start_epoch + @c, 1.5))
+    end
+
     def epoch_emission(epoch) do
         epoch_emission_1(epoch) + @epoch_emission_fixed
     end
