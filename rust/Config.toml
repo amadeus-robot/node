@@ -1,0 +1,42 @@
+[logger]
+# -1 means no truncation / infinity
+truncate = -1
+
+[ama]
+# Application version
+version_3b = [1, 2, 3]       # major, minor, patch as u8 array
+
+# Sizes
+entry_size = 524288
+tx_size = 393216
+attestation_size = 512
+quorum = 3
+
+# File paths
+work_folder = "~/.cache/amadeusd"  # default path, can be overridden by WORKFOLDER env
+
+# Offline mode
+offline = false                     # set true via OFFLINE env
+
+# Network
+http_ipv4 = "0.0.0.0"
+http_port = 80
+udp_ipv4_tuple = "0.0.0.0"
+udp_port = 36969
+
+# Nodes
+seednodes = ["104.218.45.23", "72.9.144.110"]
+othernodes = []                     # override via OTHERNODES env
+trustfactor = 0.8                   # override via TRUSTFACTOR env
+
+# # Trainer keys (generated at runtime)
+# trainer_pk_b58 = ""
+trainer_pk = [154,214,92,178,161,190,11,25,154,178,44,19,238,209,142,102,244,249,88,32,46,199,91,87,232,228,149,53,59,119,76,209]
+trainer_sk = [247,240,106,38,68,98,2,252,75,224,21,169,43,196,207,96,96,250,232,190,20,73,177,35,52,64,93,88,121,127,234,80,154,214,92,178,161,190,11,25,154,178,44,19,238,209,142,102,244,249,88,32,46,199,91,87,232,228,149,53,59,119,76,209]
+# trainer_pop = ""
+
+# Optional flags
+archival_node = false               # override via ARCHIVALNODE env
+autoupdate = false                  # override via AUTOUPDATE env
+computor_type = "default"           # "trainer" or "default", override via COMPUTOR env
+snapshot_height = 24875547          # override via SNAPSHOT_HEIGHT env
