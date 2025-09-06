@@ -21,6 +21,10 @@ defmodule BIC.Sol do
         %{epoch: epoch, pk: sol_pk, pop: pop, computor: computor_pk}
     end
 
+    def verify_hash(epoch, hash) when epoch >= 288 do
+        <<a, b, c, d, _::binary>> = hash
+        a == 0 and b == 0 and c == 0 and d <= 3
+    end
     def verify_hash(epoch, hash) when epoch >= 244 do
         <<a, b, c, _::binary>> = hash
         a == 0 and b == 0 and c == 0
