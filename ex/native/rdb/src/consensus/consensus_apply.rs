@@ -82,7 +82,7 @@ pub struct ApplyEnv<'db> {
     pub muts_gas: Vec<consensus_muts::Mutation>,
     pub muts_rev: Vec<consensus_muts::Mutation>,
     pub muts_rev_gas: Vec<consensus_muts::Mutation>,
-    pub result_log: Vec<HashMap<&'static str, &'static str>>,
+    pub result_log: Vec<HashMap<String, String>>,
     pub testnet: bool,
     pub testnet_peddlebikes: Vec<Vec<u8>>,
 }
@@ -94,7 +94,7 @@ impl<'db> ApplyEnv<'db> {
         Transaction<'db, TransactionDB<MultiThreaded>>,
         Vec<consensus_muts::Mutation>,
         Vec<consensus_muts::Mutation>,
-        Vec<HashMap<&'static str, &'static str>>,
+        Vec<HashMap<String, String>>,
     ) {
         (self.txn, self.muts_final, self.muts_final_rev, self.result_log)
     }
@@ -140,7 +140,7 @@ pub fn apply_entry<'db, 'a>(db: &'db TransactionDB<MultiThreaded>, pk: &[u8], sk
     entry_vr: &[u8; 96], entry_vr_b3: &[u8; 32], entry_dr: &[u8; 32],
     txus: Vec<rustler::Term<'a>>, txn: Transaction<'db, TransactionDB<MultiThreaded>>,
     testnet: bool, testnet_peddlebikes: Vec<Vec<u8>>,
-) -> (Transaction<'db, TransactionDB<MultiThreaded>>, Vec<consensus_muts::Mutation>, Vec<consensus_muts::Mutation>, Vec<HashMap<&'static str, &'static str>>) {
+) -> (Transaction<'db, TransactionDB<MultiThreaded>>, Vec<consensus_muts::Mutation>, Vec<consensus_muts::Mutation>, Vec<HashMap<String, String>>) {
     let cf_h = db.cf_handle("contractstate").unwrap();
     let cf2_h = db.cf_handle("contractstate").unwrap();
     let cf_tree_h = db.cf_handle("contractstate_tree").unwrap();
@@ -202,6 +202,7 @@ pub fn apply_entry<'db, 'a>(db: &'db TransactionDB<MultiThreaded>, pk: &[u8], sk
         }));
 
         let tx_cost = txu.map_get(crate::atoms::tx_cost()).unwrap().decode::<i128>().unwrap();
+        let tx_cost = (tx_cost as u64).to_string();
         match res {
             Ok(_) => {
                 applyenv.muts_final.append(&mut applyenv.muts);
@@ -232,9 +233,9 @@ pub fn apply_entry<'db, 'a>(db: &'db TransactionDB<MultiThreaded>, pk: &[u8], sk
                 }
 */
                 let mut m = std::collections::HashMap::new();
-                m.insert("error", "ok");
+                m.insert("error".to_string(), "ok".to_string());
                 if applyenv.caller_env.entry_height >= 416_00000 {
-                    m.insert("gas_used", "0");
+                    m.insert("gas_used".to_string(), tx_cost.clone());
                 }
                 applyenv.result_log.push(m);
             }
@@ -245,18 +246,18 @@ pub fn apply_entry<'db, 'a>(db: &'db TransactionDB<MultiThreaded>, pk: &[u8], sk
                 consensus_kv::revert(&mut applyenv);
 
                 if let Some(&s) = payload.downcast_ref::<&'static str>() {
-                    let mut m: HashMap<&'static str, &'static str> = HashMap::new();
-                    m.insert("error", s);
+                    let mut m = std::collections::HashMap::new();
+                    m.insert("error".to_string(), s.to_string());
                     if applyenv.caller_env.entry_height >= 416_00000 {
-                        m.insert("gas_used", "0");
+                        m.insert("gas_used".to_string(), tx_cost.clone());
                     }
                     applyenv.result_log.push(m);
                 } else {
-                    let mut m: HashMap<&'static str, &'static str> = HashMap::new();
-                    m.insert("error", "unknown");
+                    let mut m = std::collections::HashMap::new();
+                    m.insert("error".to_string(), "unknown".to_string());
                     if applyenv.caller_env.entry_height >= 416_00000 {
                         //(tx_cost as u64).to_string().into_bytes()
-                        m.insert("gas_used", "0");
+                        m.insert("gas_used".to_string(), tx_cost.clone());
                     }
                     applyenv.result_log.push(m);
                 }
