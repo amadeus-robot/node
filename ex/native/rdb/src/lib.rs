@@ -1,6 +1,7 @@
 pub mod consensus;
 pub mod atoms;
 pub mod model;
+pub mod eth_proof;
 
 use rustler::types::{Binary, OwnedBinary};
 use rustler::{
@@ -929,6 +930,37 @@ fn protocol_constants<'a>(env: Env<'a>) -> Term<'a> {
     map = map.map_put(atoms::cost_per_new_leaf_merkle(), protocol::COST_PER_NEW_LEAF_MERKLE).ok().unwrap();
 
     (map).encode(env)
+}
+
+/// Get Ethereum storage proof for a double mapping
+/// 
+/// Reads from environment variables:
+/// - ETH_ALCHEMY_API_KEY: Alchemy API key
+/// - ETH_CONTRACT_ADDRESS: Contract address containing the mapping
+/// 
+/// Parameters:
+/// - token_addr: ERC20 token address
+/// - user_addr: User address
+/// - mapping_slot: Storage slot of the mapping (default 1)
+#[rustler::nif(schedule = "DirtyCpu")]
+fn eth_get_proof<'a>(
+    env: Env<'a>,
+    token_addr: String,
+    user_addr: String,
+    mapping_slot: u64
+) -> NifResult<Term<'a>> {
+    // Get environment variables
+    let api_key = std::env::var("ETH_ALCHEMY_API_KEY")
+        .map_err(|_| Error::Term(Box::new("ETH_ALCHEMY_API_KEY environment variable not set")))?;
+    
+    let contract_addr = std::env::var("ETH_CONTRACT_ADDRESS")
+        .map_err(|_| Error::Term(Box::new("ETH_CONTRACT_ADDRESS environment variable not set")))?;
+
+    // Get proof
+    match crate::eth_proof::get_eth_proof(&api_key, &contract_addr, &token_addr, &user_addr, mapping_slot) {
+        Ok(response) => Ok((atoms::ok(), response).encode(env)),
+        Err(e) => Err(Error::Term(Box::new(format!("Failed to get proof: {}", e)))),
+    }
 }
 
 rustler::init!("Elixir.RDB", load = on_load);
