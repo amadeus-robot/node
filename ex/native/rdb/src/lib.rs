@@ -1,6 +1,7 @@
 pub mod consensus;
 pub mod atoms;
 pub mod model;
+pub mod mpt;
 
 use rustler::types::{Binary, OwnedBinary};
 use rustler::{
@@ -990,6 +991,41 @@ fn protocol_epoch_emission<'a>(env: Env<'a>, epoch: u64) -> i128 {
 #[rustler::nif]
 fn protocol_circulating_without_burn<'a>(env: Env<'a>, epoch: u64) -> i128 {
     crate::consensus::bic::epoch::circulating_without_burn(epoch)
+}
+
+#[rustler::nif]
+fn mpt_verify_proof<'a>(env: Env<'a>, root: Binary, index: Term<'a>, proof: Vec<Binary>) -> NifResult<Term<'a>> {
+    use crate::mpt;
+    
+    // Validate root is 32 bytes
+    if root.len() != 32 {
+        return Err(Error::Term(Box::new(format!("Root must be 32 bytes, got {}", root.len()))));
+    }
+
+    // Parse index - can be either a number (u64) or already RLP-encoded bytes
+    let index_bytes = if let Ok(num) = index.decode::<u64>() {
+        mpt::rlp_encode_number(num)
+    } else if let Ok(bin) = index.decode::<Binary>() {
+        bin.as_slice().to_vec()
+    } else {
+        return Err(Error::Term(Box::new("Index must be a number (u64) or binary (RLP-encoded)".to_string())));
+    };
+
+    // Convert proof nodes to Vec<Vec<u8>>
+    let proof_nodes: Vec<Vec<u8>> = proof.iter().map(|b| b.as_slice().to_vec()).collect();
+
+    // Verify the proof
+    match mpt::verify_proof(root.as_slice(), &index_bytes, &proof_nodes) {
+        Ok(value) => {
+            let mut ob = OwnedBinary::new(value.len())
+                .ok_or_else(|| Error::Term(Box::new("alloc failed")))?;
+            ob.as_mut_slice().copy_from_slice(&value);
+            Ok((atoms::ok(), Binary::from_owned(ob, env)).encode(env))
+        }
+        Err(e) => {
+            Ok((atoms::error(), e).encode(env))
+        }
+    }
 }
 
 rustler::init!("Elixir.RDB", load = on_load);
