@@ -1,0 +1,18 @@
+# Rust build artifacts
+/target/
+/build/
+**/*.rs.bk
+*.pdb
+
+# Cargo files
+Cargo.lock
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
