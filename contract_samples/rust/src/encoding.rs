@@ -55,16 +55,16 @@ pub fn bcat(items: &[&[u8]]) -> Vec<u8> {
     r
 }
 
-pub fn bytes_to_i64(data: Option<&[u8]>, default: i64) -> i64 {
-    data.and_then(|b| core::str::from_utf8(b).ok())
+pub fn bytes_to_i64(data: &[u8]) -> i64 {
+    core::str::from_utf8(data).ok()
         .and_then(|s| parse_i64(s))
-        .unwrap_or(default)
+        .unwrap_or(0)
 }
 
-pub fn bytes_to_u64(data: Option<&[u8]>, default: u64) -> u64 {
-    data.and_then(|b| core::str::from_utf8(b).ok())
+pub fn bytes_to_u64(data: &[u8]) -> u64 {
+    core::str::from_utf8(data).ok()
         .and_then(|s| parse_u64(s))
-        .unwrap_or(default)
+        .unwrap_or(0)
 }
 
 fn parse_i64(s: &str) -> Option<i64> {

@@ -1,5 +1,7 @@
 use alloc::{vec::Vec, string::String};
 
+pub const BURN_ADDRESS: [u8; 48] = [0u8; 48];
+
 fn read_bytes(ptr: i32) -> Vec<u8> {
     unsafe {
         let len = *(ptr as *const i32);

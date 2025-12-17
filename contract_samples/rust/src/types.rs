@@ -1,17 +1,5 @@
 use alloc::{vec::Vec, string::{String, ToString}};
 
-#[derive(Debug, Clone)]
-pub struct KeyValuePair {
-    pub key: Option<Vec<u8>>,
-    pub value: Option<Vec<u8>>,
-}
-
-impl KeyValuePair {
-    pub fn new(key: Option<Vec<u8>>, value: Option<Vec<u8>>) -> Self {
-        Self { key, value }
-    }
-}
-
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
 }

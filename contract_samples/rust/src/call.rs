@@ -21,7 +21,7 @@ pub fn call<C: ToBytes, F: ToBytes, A: ToBytes>(c: C, f: F, args: &[A]) -> Vec<u
 }
 
 pub fn call_with_extra<C: ToBytes, F: ToBytes, A: ToBytes, E: ToBytes>(
-    c: C, f: F, args: &[A], extra: &[E]
+    c: C, f: F, args: &[A], _extra: &[E]
 ) -> Vec<u8> {
     let cb = c.to_bytes();
     let fb = f.to_bytes();

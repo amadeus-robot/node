@@ -2,24 +2,26 @@
 #![no_main]
 extern crate alloc;
 use amadeus_sdk::*;
-use alloc::{string::{String, ToString}};
-
-fn mem_read(ptr: i32) -> String {
-    unsafe {
-        let len = *(ptr as *const i32);
-        let data = (ptr + 4) as *const u8;
-        String::from_utf8(core::slice::from_raw_parts(data, len as usize).to_vec()).unwrap_or_default()
-    }
-}
+use alloc::string::ToString;
 
 #[no_mangle]
 pub extern "C" fn init() {
-    call("Nft", "create_collection", &["AGENTIC".as_bytes(), "false".as_bytes()]);
+    call("Nft", "create_collection", &[&b"AGENTIC"[..], &b"false"[..]]);
 }
 
 #[no_mangle]
-pub extern "C" fn view_nft(collection_ptr: i32, token_ptr: i32) {
-    ret("https://ipfs.io/ipfs/bafybeicn7i3soqdgr7dwnrwytgq4zxy7a5jpkizrvhm5mv6bgjd32wm3q4/welcome-to-IPFS.jpg");
+pub extern "C" fn view_nft(_collection_ptr: i32, token_ptr: i32) {
+    let token = read_string(token_ptr);
+    let url = match token.as_str() {
+        "1" => "https://ipfs.io/ipfs/bafybeicn7i3soqdgr7dwnrwytgq4zxy7a5jpkizrvhm5mv6bgjd32wm3q4/welcome-to-IPFS.jpg",
+        "2" => "https://ipfs.io/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/readme",
+        "3" => "https://ipfs.io/ipfs/QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB",
+        "4" => "https://ipfs.io/ipfs/QmYjtig7VJQ6XsnUjqqJvj7QaMcCAwtrgNdahSiFofrE7o",
+        "5" => "https://ipfs.io/ipfs/QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN",
+        "6" => "https://ipfs.io/ipfs/QmTn4KLRkKPDkB3KpJWGXZHPPh5dFnKqNcPjX4ZcbPvKwv",
+        _ => "https://ipfs.io/ipfs/bafybeicn7i3soqdgr7dwnrwytgq4zxy7a5jpkizrvhm5mv6bgjd32wm3q4/welcome-to-IPFS.jpg",
+    };
+    ret(url);
 }
 
 #[no_mangle]
@@ -27,9 +29,10 @@ pub extern "C" fn claim() {
     let random = roll_dice();
     log("claiming");
     let caller = account_caller();
-    call("Nft", "mint", &[caller.as_slice(), "1".as_bytes(), "AGENTIC".as_bytes(), "1".as_bytes()]);
+    let collection = b"AGENTIC";
+    call("Nft", "mint", &[caller.as_slice(), &b"1"[..], collection.as_slice(), &b"1"[..]]);
     let token = random.to_string();
-    call("Nft", "mint", &[caller.as_slice(), "1".as_bytes(), "AGENTIC".as_bytes(), token.as_bytes()]);
+    call("Nft", "mint", &[caller.as_slice(), &b"1"[..], collection.as_slice(), token.as_bytes()]);
     ret(random);
 }
 

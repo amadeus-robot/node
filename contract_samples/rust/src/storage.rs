@@ -1,5 +1,5 @@
 use alloc::{vec::Vec, string::String};
-use crate::types::{ToBytes, KeyValuePair};
+use crate::types::ToBytes;
 
 extern "C" {
     fn import_kv_put(kp: i32, kl: i32, vp: i32, vl: i32) -> i32;
@@ -11,7 +11,7 @@ extern "C" {
     fn import_kv_get_next(pp: i32, pl: i32, kp: i32, kl: i32) -> i32;
 }
 
-fn read_bytes(p: i32) -> Vec<u8> {
+pub fn read_bytes(p: i32) -> Vec<u8> {
     unsafe {
         let len = *(p as *const i32);
         if len == -1 { return Vec::new(); }
@@ -20,7 +20,7 @@ fn read_bytes(p: i32) -> Vec<u8> {
     }
 }
 
-fn read_string(p: i32) -> String {
+pub fn read_string(p: i32) -> String {
     String::from_utf8(read_bytes(p)).unwrap_or_default()
 }
 
@@ -74,26 +74,26 @@ pub fn kv_exists<K: ToBytes>(k: K) -> bool {
     }
 }
 
-pub fn kv_get_prev<K: ToBytes, V: ToBytes>(p: K, k: V) -> KeyValuePair {
+pub fn kv_get_prev<K: ToBytes, V: ToBytes>(p: K, k: V) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
     let pb = p.to_bytes();
     let kb = k.to_bytes();
     let (pp, pl, kp, kl) = write_bufs(&pb, &kb);
     unsafe {
         let r = import_kv_get_prev(pp, pl, kp, kl);
         let len = *(r as *const i32);
-        if len == -1 { KeyValuePair::new(None, None) }
-        else { KeyValuePair::new(Some(read_bytes(r)), Some(read_bytes(r + 4 + len))) }
+        if len == -1 { (None, None) }
+        else { (Some(read_bytes(r)), Some(read_bytes(r + 4 + len))) }
     }
 }
 
-pub fn kv_get_next<K: ToBytes, V: ToBytes>(p: K, k: V) -> KeyValuePair {
+pub fn kv_get_next<K: ToBytes, V: ToBytes>(p: K, k: V) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
     let pb = p.to_bytes();
     let kb = k.to_bytes();
     let (pp, pl, kp, kl) = write_bufs(&pb, &kb);
     unsafe {
         let r = import_kv_get_next(pp, pl, kp, kl);
         let len = *(r as *const i32);
-        if len == -1 { KeyValuePair::new(None, None) }
-        else { KeyValuePair::new(Some(read_bytes(r)), Some(read_bytes(r + 4 + len))) }
+        if len == -1 { (None, None) }
+        else { (Some(read_bytes(r)), Some(read_bytes(r + 4 + len))) }
     }
 }
