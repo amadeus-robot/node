@@ -4,6 +4,7 @@ pub mod contract;
 pub mod epoch;
 pub mod lockup;
 pub mod lockup_prime;
+pub mod nft;
 pub mod protocol;
 pub mod sol;
 pub mod sol_bloom;

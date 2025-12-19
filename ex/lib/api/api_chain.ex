@@ -59,10 +59,54 @@ defmodule API.Chain do
         end)
     end
 
-    def pflops() do
+    def stats(next_entry \\ nil) do
+      {tip, epoch} = if next_entry do {next_entry, div(next_entry.header.height, 100_000)} else
+        tip = DB.Chain.tip_entry()
+        {tip, div(tip.header.height, 100_000)}
+      end
+
+      %{
+        height: tip.header.height,
+        tip_hash: tip.hash |> Base58.encode(),
+        tip: format_entry_for_client(tip),
+        tx_pool_size: TXPool.size(),
+        cur_validator: DB.Chain.validator_for_height_current() |> Base58.encode(),
+        next_validator: DB.Chain.validator_for_height_next() |> Base58.encode(),
+        emission_for_epoch: BIC.Coin.from_flat(RDB.protocol_epoch_emission(epoch)),
+        circulating: BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(epoch)),
+        total_supply_y3: total_supply_y3(),
+        total_supply_y30: total_supply_y30(),
+        burned: API.Contract.total_burned().float,
+        diff_bits: API.Epoch.get_diff_bits(),
+        pflops: pflops(tip.header.height),
+        txs_per_sec: stat_txs_sec(tip.header.height),
+      }
+    end
+
+    def total_supply_y3() do
+      cached = :persistent_term.get(:total_supply_y3, nil)
+      if cached do cached else
+        value = BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(500*3))
+        :persistent_term.put(:total_supply_y3, value)
+        value
+      end
+      804_065_972
+    end
+
+    def total_supply_y30() do
+      cached = :persistent_term.get(:total_supply_y30, nil)
+      if cached do cached else
+        value = BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(500*30))
+        :persistent_term.put(:total_supply_y30, value)
+        value
+      end
+      1_000_000_000
+    end
+
+    def pflops(height) do
       #A*B=C M=16 K=50240 N=16 u8xi8=i32
-      height_in_epoch = rem(DB.Chain.height(), 100_000)
-      total_score = API.Epoch.score() |> Enum.map(& Enum.at(&1,1))|> Enum.sum()
+      height_in_epoch = rem(height, 100_000)
+      total_score = API.Epoch.score() |> Enum.map(& Enum.at(&1,1)) |> Enum.sum()
       diff_multiplier = Bitwise.bsl(1, API.Epoch.get_diff_bits())
       total_calcs = total_score * diff_multiplier
       macs = 16*16*50240
@@ -71,28 +115,8 @@ defmodule API.Chain do
       seconds = height_in_epoch * 0.5 + 1
       ((total_calcs * ops) / seconds) / 1.0e15
     end
-    
-    def stats() do
-      %{
-        height: DB.Chain.height(),
-        tip_hash: DB.Chain.tip() |> Base58.encode(),
-        tip: format_entry_for_client(DB.Chain.tip_entry()),
-        tx_pool_size: TXPool.size(),
-        cur_validator: DB.Chain.validator_for_height_current() |> Base58.encode(),
-        next_validator: DB.Chain.validator_for_height_next() |> Base58.encode(),
-        emission_for_epoch: BIC.Coin.from_flat(RDB.protocol_epoch_emission(DB.Chain.epoch())),
-        circulating: BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(DB.Chain.epoch())),
-        total_supply_y3: BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(500*3)),
-        total_supply_y30: BIC.Coin.from_flat(RDB.protocol_circulating_without_burn(500*30)),
-        pflops: pflops(),
-        burned: API.Contract.total_burned().float,
-        txs_per_sec: stat_txs_sec(),
-        diff_bits: API.Epoch.get_diff_bits()
-      }
-    end
 
-    def stat_txs_sec() do
-      height = DB.Chain.rooted_height()
+    def stat_txs_sec(height) do
       height_start = max(height-100, 0)
       last_100 = Enum.sum_by(height_start..height, fn(height)->
         length(DB.Entry.by_height(height) |> List.first() |> Map.get(:txs))
@@ -118,7 +142,7 @@ defmodule API.Chain do
         #new additions
         entry = if !entry.header[:root_tx] do entry else put_in(entry, [:header, :root_tx], Base58.encode(entry.header.root_tx)) end
         entry = if !entry.header[:root_validator] do entry else put_in(entry, [:header, :root_validator], Base58.encode(entry.header.root_validator)) end
-        
+
         entry = put_in(entry, [:header], entry.header)
         {mut_hash, score} = DB.Attestation.best_consensus_by_entryhash(hash)
         if !mut_hash do entry else
@@ -129,4 +153,14 @@ defmodule API.Chain do
             entry
         end
     end
+end
+
+defmodule API do
+  def maybe_b58(size, binary) do
+    cond do
+      size != byte_size(binary) -> Base58.decode(binary)
+      binary == :binary.copy(<<"1">>, size) -> :binary.copy(<<0>>, size)
+      true -> binary
+    end
+  end
 end

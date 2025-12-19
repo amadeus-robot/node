@@ -127,8 +127,8 @@ defmodule EntryGenesis do
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
         rtx = RocksDB.transaction(db)
         Process.put({RocksDB, :ctx}, %{rtx: rtx, cf: cf})
-        {mutations, _} = BIC.Base.call_exit(%{entry: entry})
-
+        #{mutations, _} = BIC.Base.call_exit(%{entry: entry})
+        mutations = []
         mutations_hash = RDB.vecpak_encode(mutations) |> Blake3.hash()
         attestation = Attestation.sign(sk, entry_signed.hash, 0, mutations_hash, :binary.copy(<<0>>, 32), :binary.copy(<<0>>, 32), :binary.copy(<<0>>, 32))
 

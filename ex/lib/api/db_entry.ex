@@ -102,13 +102,19 @@ defmodule DB.Entry do
     RocksDB.put("entry:#{entry.hash}:root_receipts", root_receipts, db_handle(db_opts, :entry_meta, %{}))
     RocksDB.put("entry:#{entry.hash}:root_contractstate", root_contractstate, db_handle(db_opts, :entry_meta, %{}))
 
-    Enum.each(Enum.zip(entry.txs, receipts), fn({txu, result})->
+    tx_filters = RDB.build_tx_hashfilters(entry.txs)
+    Enum.each(tx_filters, fn {key, hash} ->
+      RocksDB.put(key, hash, db_handle(db_opts, :tx_filter, %{}))
+    end)
+
+    receipts_by_txid = Map.new(receipts, fn r -> {r.txid, Map.drop(r, [:txid])} end)
+    Enum.each(entry.txs, fn(txu)->
+      receipt = Map.fetch!(receipts_by_txid, txu.hash)
       case :binary.match(entry_packed, TX.pack(txu)) do
           {index_start, index_size} ->
-            tx_ptr = %{entry_hash: entry.hash, result: result, index_start: index_start, index_size: index_size}
+            tx_ptr = %{entry_hash: entry.hash, receipt: receipt, index_start: index_start, index_size: index_size}
             |> RDB.vecpak_encode()
             RocksDB.put(txu.hash, tx_ptr, db_handle(db_opts, :tx, %{}))
-
             nonce_padded = pad_integer_20(txu.tx.nonce)
             RocksDB.put("#{txu.tx.signer}:#{nonce_padded}", txu.hash, db_handle(db_opts, :tx_account_nonce, %{}))
             TX.known_receivers(txu)
@@ -153,6 +159,11 @@ defmodule DB.Entry do
     RocksDB.delete_prefix("consensus:#{hash}:", db_handle(db_opts, :attestation, %{}))
     RocksDB.delete_prefix("attestation:#{height_padded}:#{hash}:", db_handle(db_opts, :attestation, %{}))
 
+    tx_filters = RDB.build_tx_hashfilters(entry.txs)
+    Enum.each(tx_filters, fn {key, _hash} ->
+      RocksDB.delete(key, db_handle(db_opts, :tx_filter, %{}))
+    end)
+
     Enum.each(entry.txs, fn(txu)->
         RocksDB.delete(txu.hash, db_handle(db_opts, :tx, %{}))
 
@@ -165,4 +176,33 @@ defmodule DB.Entry do
     end)
   end
 
+  def build_filter_hashes() do
+    rebuilt_up_to = RocksDB.get("filter_hashes_rebuilt_up_to", db_handle(%{}, :sysconf, %{})) || EntryGenesis.get().hash
+    entry = by_hash(rebuilt_up_to)
+    if rem(entry.header.height, 10_000) == 0 do
+      IO.inspect {:rebuilt_filter_hashes_up_to, entry.header.height}
+    end
+    txs = entry.txs
+    txs = Enum.map(txs, fn(txu)->
+      txu = if !is_binary(txu) do txu else
+        txu = VanillaSer.decode!(txu)
+        tx = VanillaSer.decode!(txu.tx_encoded)
+        Map.put(txu, :tx, tx)
+      end
+      action = TX.action(txu)
+      args = case action.args do
+        [n|t] when is_integer(n) -> [:erlang.integer_to_binary(n) | t]
+        args -> args
+      end
+
+      txu = put_in(txu, [:tx, :action], action)
+      put_in(txu, [:tx, :action, :args], args)
+    end)
+
+    tx_filters = RDB.build_tx_hashfilters(txs)
+    Enum.each(tx_filters, fn {key, hash} ->
+      RocksDB.put(key, hash, db_handle(%{}, :tx_filter, %{}))
+    end)
+    rebuilt_up_to = RocksDB.put("filter_hashes_rebuilt_up_to", next(rebuilt_up_to), db_handle(%{}, :sysconf, %{})) || EntryGenesis.get().hash
+  end
 end

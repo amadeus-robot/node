@@ -1,6 +1,6 @@
 defmodule API.Proof do
   def validators(entry_hash) do
-    entry_hash = if byte_size(entry_hash) != 32, do: Base58.decode(entry_hash), else: entry_hash
+    entry_hash = API.maybe_b58(32, entry_hash)
     proof = Entry.proof_validators(entry_hash)
     %{
       key: proof.key,

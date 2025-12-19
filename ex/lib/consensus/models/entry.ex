@@ -186,34 +186,18 @@ defmodule Entry do
         if :crypto.hash(:sha256, ceh.dr) != neh.dr, do: throw(%{error: :invalid_dr})
         if !BlsEx.verify?(neh.signer, neh.vr, ceh.vr, BLS12AggSig.dst_vrf()), do: throw(%{error: :invalid_vr})
 
-        if neh.height >= RDBProtocol.forkheight() do
-
-          chain_epoch = div(neh.height, 100_000)
-          chain_height = neh.height
-          segment_vr_hash = DB.Chain.segment_vr_hash()
-          diff_bits = DB.Chain.diff_bits()
-
-          Enum.reduce(next_entry.txs, %{}, fn(txu, batch_state)->
-              case TXPool.validate_tx(txu, %{epoch: chain_epoch, height: chain_height, segment_vr_hash: segment_vr_hash, diff_bits: diff_bits, batch_state: batch_state}) do
-                %{error: :ok, batch_state: batch_state} -> batch_state
-                %{error: error} when error in [:invalid_tx_nonce, :not_enough_tx_exec_balance] -> throw %{error: error}
-                _ -> batch_state
-              end
-          end)
-
-        else
-        chain_epoch = DB.Chain.epoch()
+        chain_epoch = div(neh.height, 100_000)
+        chain_height = neh.height
         segment_vr_hash = DB.Chain.segment_vr_hash()
         diff_bits = DB.Chain.diff_bits()
 
         Enum.reduce(next_entry.txs, %{}, fn(txu, batch_state)->
-            case TXPool.validate_tx(txu, %{epoch: chain_epoch, segment_vr_hash: segment_vr_hash, diff_bits: diff_bits, batch_state: batch_state}) do
+            case TXPool.validate_tx(txu, %{epoch: chain_epoch, height: chain_height, segment_vr_hash: segment_vr_hash, diff_bits: diff_bits, batch_state: batch_state}) do
               %{error: :ok, batch_state: batch_state} -> batch_state
               %{error: error} when error in [:invalid_tx_nonce, :not_enough_tx_exec_balance] -> throw %{error: error}
               _ -> batch_state
             end
         end)
-        end
 
         %{error: :ok}
         catch

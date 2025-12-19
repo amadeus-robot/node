@@ -15,12 +15,12 @@ config :ama, :work_folder, work_folder
 
 #load env
 #Envvar.load(Path.join([work_folder, ".env"]))
-config :ama, :snapshot_height, (System.get_env("SNAPSHOT_HEIGHT") || "41960861") |> :erlang.binary_to_integer()
+config :ama, :snapshot_height, (System.get_env("SNAPSHOT_HEIGHT") || "43401193") |> :erlang.binary_to_integer()
 
 # https://snapshots.amadeus.bot/000041960861.zip
 # zip -0 -r 000037454455.zip db/
 # aws s3 cp --checksum-algorithm=CRC32 --endpoint-url https://20bf2f5d11d26a322e389687896a6601.r2.cloudflarestorage.com 000039434469.zip s3://ama-snapshot
-# aria2c -x 2 https://snapshots.amadeus.bot/000041960861.zip
+# aria2c -x 2 https://snapshots.amadeus.bot/000043401193.zip
 
 # tar -C /tmp/000037454455 --xform 's@^\./@@' -cf - . | zstd -T0 -1 -o /tmp/000037454455.tar.zst
 # zstd -T0 -d --stdout /tmp/000037454455.tar.zst | tar -C /tmp/restore -xf -
@@ -38,6 +38,7 @@ config :ama, :udp_ipv4_tuple, udp_ipv4_iface
 config :ama, :udp_port, (System.get_env("UDP_PORT") || "36969") |> :erlang.binary_to_integer()
 
 config :ama, :rpc_url, (System.get_env("RPC_URL") || "https://nodes.amadeus.bot")
+config :ama, :rpc_events, ((System.get_env("RPC_EVENTS") || "true") == "true")
 
 #Nodes
 if !Util.verify_time_sync() do

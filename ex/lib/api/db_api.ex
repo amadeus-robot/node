@@ -33,7 +33,7 @@ defmodule DB.API do
       "sysconf",
       "entry", "entry_meta",
       "attestation",
-      "tx", "tx_account_nonce", "tx_receiver_nonce",
+      "tx", "tx_account_nonce", "tx_receiver_nonce", "tx_filter",
       "contractstate", "contractstate_tree"
     ]
     try do
@@ -43,7 +43,7 @@ defmodule DB.API do
         sysconf_cf,
         entry_cf, entry_meta_cf,
         attestation_cf,
-        tx_cf, tx_account_nonce_cf, tx_receiver_nonce_cf,
+        tx_cf, tx_account_nonce_cf, tx_receiver_nonce_cf, tx_filter_cf,
         contractstate_cf, contractstate_tree_cf,
       ] = cf_ref_list
       cf = %{
@@ -51,7 +51,7 @@ defmodule DB.API do
         sysconf: sysconf_cf,
         entry: entry_cf, entry_meta: entry_meta_cf,
         attestation: attestation_cf,
-        tx: tx_cf, tx_account_nonce: tx_account_nonce_cf, tx_receiver_nonce: tx_receiver_nonce_cf,
+        tx: tx_cf, tx_account_nonce: tx_account_nonce_cf, tx_receiver_nonce: tx_receiver_nonce_cf, tx_filter: tx_filter_cf,
         contractstate: contractstate_cf, contractstate_tree: contractstate_tree_cf
       }
       :persistent_term.put({:rocksdb, Fabric}, %{db: db_ref, cf_list: cf_ref_list, cf: cf, path: path})

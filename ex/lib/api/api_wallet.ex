@@ -6,14 +6,13 @@ defmodule API.Wallet do
 
     #def balance(pk, symbol \\ "AMA") do
     def balance(pk, symbol \\ "AMA") do
-        pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
+        pk = API.maybe_b58(48, pk)
         coins = DB.Chain.balance(pk, symbol)
         %{symbol: symbol, flat: coins, float: BIC.Coin.from_flat(coins)}
     end
 
     def balance_all(pk) do
-        pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
-
+        pk = API.maybe_b58(48, pk)
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
         opts = %{db: db, cf: cf.contractstate, to_integer: true}
         RocksDB.get_prefix("account:#{pk}:balance:", opts)
@@ -22,14 +21,20 @@ defmodule API.Wallet do
         end)
     end
 
+    def balance_nft(pk, collection, token) do
+        pk = API.maybe_b58(48, pk)
+        amount = DB.Chain.balance_nft(pk, collection, token)
+        %{collection: collection, token: token, amount: amount}
+    end
+
     def transfer(to, amount, symbol) do
         sk = Application.fetch_env!(:ama, :trainer_sk)
         transfer(sk, to, amount, symbol)
     end
 
     def transfer(from_sk, to, amount, symbol, broadcast \\ true) do
-        from_sk = if byte_size(from_sk) != 64, do: Base58.decode(from_sk), else: from_sk
-        to = if byte_size(to) != 48, do: Base58.decode(to), else: to
+        from_sk = API.maybe_b58(64, from_sk)
+        to = API.maybe_b58(48, to)
         if !BlsEx.validate_public_key(to) and to != BIC.Coin.burn_address(), do: throw(%{error: :invalid_receiver_pk})
         amount = if is_float(amount) do trunc(amount * 1_000_000_000) else amount end
         amount = if is_integer(amount) do :erlang.integer_to_binary(amount) else amount end

@@ -13,19 +13,20 @@ defmodule API.Contract do
         RocksDB.get_prefix(prefix, opts)
     end
 
-    def view(account, function, args) do
+    @default_view_pk :binary.copy(<<0>>, 48)
+    def view(contract, function, args, view_pk \\ nil) do
+      view_pk = if view_pk do view_pk else @default_view_pk end
+      %{db: db} = :persistent_term.get({:rocksdb, Fabric})
+      tip = DB.Chain.tip_entry() |> RDB.vecpak_encode()
+      RDB.contract_view(db, tip, view_pk, contract, function, args, !!Application.fetch_env!(:ama, :testnet))
     end
 
-    def validate_bytecode(bytecode) do
-        task = Task.async(fn -> BIC.Contract.validate(bytecode) end)
-        try do
-          err = %{error: _} = Task.await(task, 100)
-          err
-        catch
-          :exit, {:timeout, _} ->
-            Task.shutdown(task, :brutal_kill)
-            %{error: :system, reason: :timeout}
-        end
+    def validate(bytecode) do
+      %{db: db} = :persistent_term.get({:rocksdb, Fabric})
+      tip = DB.Chain.tip_entry() |> RDB.vecpak_encode()
+      {error, logs} = RDB.contract_validate(db, tip, bytecode, !!Application.fetch_env!(:ama, :testnet))
+      logs = Enum.map(logs, & RocksDB.ascii_dump(&1))
+      %{error: error, logs: logs}
     end
 
     def richlist() do

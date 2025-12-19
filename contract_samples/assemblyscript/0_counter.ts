@@ -1,20 +1,27 @@
 import * as sdk from "./sdk";
 import { b, b58 } from "./sdk";
 
+export function init(): void {
+  sdk.log("Init called during deployment of contract")
+  sdk.kv_put("inited", "true")
+}
+
 export function get(): void {
-  sdk.log(`get called`)
-  if (sdk.kv_exists(b("the_counter"))) {
-    sdk.log("exists")
-  }
-  let cur_counter = sdk.kv_get_or<i64>(b("the_counter"), 0)
-  sdk.kv_put(b("the_counter"), b("1"))
-  //let new_counter = sdk.kv_increment(b("the_counter"), "1")
-  assert(cur_counter < 10, "counter is over 10")
+  let cur_counter = sdk.bToI64(sdk.kv_get("the_counter"))
   sdk.ret(cur_counter)
 }
 
 export function increment(amount_ptr: i32): void {
   let amount = sdk.memory_read_string(amount_ptr)
-  let new_counter = sdk.kv_increment(b("the_counter"), amount)
-  sdk.ret(new_counter)
+  sdk.kv_increment("the_counter", amount)
+  let incremented_counter = sdk.kv_increment("the_counter", 1)
+  sdk.ret(incremented_counter)
+}
+
+export function increment_another_counter(contract_ptr: i32): void {
+  let contract = sdk.memory_read_bytes(contract_ptr)
+  let incr_by = 3
+  sdk.log(`Calling increment on ${b58(contract)} by ${incr_by}`)
+  let other_counter = sdk.call(contract, "increment", [b(incr_by)])
+  sdk.ret(other_counter)
 }

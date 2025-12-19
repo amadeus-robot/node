@@ -73,8 +73,7 @@ defmodule TX do
       if !BlsEx.verify?(txu.tx.signer, txu.signature, txu.hash, BLS12AggSig.dst_tx()), do: throw(%{error: :invalid_signature})
 
       if !is_integer(txu.tx.nonce), do: throw(%{error: :nonce_not_integer})
-      if txu.tx.nonce > 99_999_999_999_999_999_999, do: throw(%{error: :nonce_too_high})
-
+      if txu.tx.nonce > 18_446_744_073_709_551_615, do: throw(%{error: :nonce_too_high})
       if !is_map(action), do: throw(%{error: :action_must_be_map})
       if action[:op] != "call", do: throw %{error: :op_must_be_call}
       if !is_binary(action[:contract]), do: throw %{error: :contract_must_be_binary}
@@ -142,7 +141,7 @@ defmodule TX do
       a = action.args
       case {c,f,a} do
          {"Coin", "transfer", [receiver, _amount, _symbol]} -> valid_pk(receiver) && [receiver]
-         {"Epoch", "slash_trainer", [_epoch, malicious_pk, _signature, _mask_size, _mask]} -> valid_pk(malicious_pk) && [malicious_pk]
+         {"Epoch", "slash_trainer", [malicious_pk, _epoch, _signature, _mask_size, _mask]} when byte_size(malicious_pk) == 48 -> valid_pk(malicious_pk) && [malicious_pk]
          _ -> nil
       end || []
    end
@@ -153,17 +152,9 @@ defmodule TX do
    end
 
    def historical_cost(height, txu) do
-     if height >= RDBProtocol.forkheight() do
-        max(
-          RDBProtocol.ama_1_cent(),
-          RDBProtocol.cost_per_byte_historical() * byte_size(RDB.vecpak_encode(txu.tx)))
-     else
-      min(
+      max(
         RDBProtocol.ama_1_cent(),
-        max(
-          RDBProtocol.ama_1_cent(),
-          RDBProtocol.cost_per_byte_historical() * byte_size(RDB.vecpak_encode(txu.tx))))
-     end
+        RDBProtocol.cost_per_byte_historical() * byte_size(RDB.vecpak_encode(txu.tx)))
    end
 
    def action(%{tx: %{actions: [action|_]}}), do: action

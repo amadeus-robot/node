@@ -4,17 +4,23 @@ defmodule Testnet do
     API.TX.submit_and_wait(txu |> TX.pack(), false)
   end
 
+  def view(contract, function, args, view_pk \\ nil) do
+    API.Contract.view(contract, function, args, view_pk)
+  end
+
   def read(key) do
     %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
     RocksDB.get(key, %{db: db, cf: cf.contractstate})
   end
 
-  def deploy(path) do deploy(Application.fetch_env!(:ama, :keys) |> Enum.at(0) |> Map.fetch!(:pk), path) end
-  def deploy(pk, path) do
-    key0 = Application.fetch_env!(:ama, :keys) |> Enum.at(0)
-    pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
+  def deploy(path) do deploy(Application.fetch_env!(:ama, :keys) |> Enum.at(0), path) end
+  def deploy(key, path, init_func \\ nil) do
     wasmbytes = File.read!(path)
-    Testnet.call(key0.seed, "Contract", "deploy", [wasmbytes])
+    if init_func do
+      Testnet.call(key.seed, "Contract", "deploy", [wasmbytes, init_func])
+    else
+      Testnet.call(key.seed, "Contract", "deploy", [wasmbytes])
+    end
   end
 
   def transfer(to, amount, symbol \\ "AMA") do
@@ -39,7 +45,7 @@ defmodule Testnet do
       BLS12AggSig.add_padded(aggsig, validators, signer_pk, signature)
     end)
 
-    args = ["#{epoch}", malicious_pk, aggsig.aggsig, "#{aggsig.mask_size}", aggsig.mask]
+    args = [malicious_pk, "#{epoch}", aggsig.aggsig, "#{aggsig.mask_size}", aggsig.mask]
 
     signer_sk = Application.fetch_env!(:ama, :trainer_sk)
     Testnet.call(signer_sk, "Epoch", "slash_trainer", args)

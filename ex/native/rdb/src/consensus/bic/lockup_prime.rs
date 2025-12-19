@@ -1,6 +1,6 @@
 use std::panic::panic_any;
 use crate::{bcat};
-use crate::consensus::{bic::{coin::{balance,mint, to_flat}, epoch::TREASURY_DONATION_ADDRESS, lockup::{create_lock}}, consensus_kv::{kv_get, kv_increment, kv_put, kv_delete}};
+use crate::consensus::{bic::{coin::{balance, mint, to_flat}, epoch::TREASURY_DONATION_ADDRESS, lockup::{create_lock}}, consensus_kv::{kv_get, kv_increment, kv_put, kv_delete}};
 use vecpak::{encode, Term};
 
 pub fn call_lock(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: Vec<Vec<u8>>) {
@@ -71,10 +71,11 @@ pub fn call_unlock(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: 
 
         kv_increment(env, &bcat(&[b"account:", TREASURY_DONATION_ADDRESS, b":balance:AMA"]), penalty as i128);
         //Lockup for 5 epochs
-        create_lock(env, env.caller_env.account_caller.to_vec().as_slice(), b"AMA", disbursement as i128, env.caller_env.entry_epoch.saturating_add(5));
+        let unlock_height = env.caller_env.entry_height.saturating_add(100_000 * 5);
+        create_lock(env, env.caller_env.account_caller.to_vec().as_slice(), disbursement as i128, b"AMA", unlock_height);
     } else {
         let prime_points = unlock_amount * multiplier;
-        mint(env, b"PRIME", prime_points as i128, env.caller_env.account_caller.to_vec().as_slice());
+        mint(env, env.caller_env.account_caller.to_vec().as_slice(), prime_points as i128, b"PRIME");
         kv_increment(env, &bcat(&[b"account:", &env.caller_env.account_caller, b":balance:AMA"]), unlock_amount as i128);
     }
 
@@ -101,13 +102,13 @@ pub fn call_daily_checkin(env: &mut crate::consensus::consensus_apply::ApplyEnv,
         kv_put(env, &bcat(&[b"bic:lockup_prime:next_checkin_epoch:", &env.caller_env.account_caller]), env.caller_env.entry_epoch.saturating_add(2).to_string().as_bytes());
 
         let daily_bonus = unlock_amount / 100;
-        mint(env, b"PRIME", daily_bonus as i128, env.caller_env.account_caller.to_vec().as_slice());
+        mint(env, env.caller_env.account_caller.to_vec().as_slice(), daily_bonus as i128, b"PRIME");
 
         let streak = kv_increment(env, &bcat(&[b"bic:lockup_prime:daily_streak:", &env.caller_env.account_caller]), 1);
         if streak >= 30 {
             kv_put(env, &bcat(&[b"bic:lockup_prime:daily_streak:", &env.caller_env.account_caller]), b"0");
             let streak_bonus = daily_bonus * 30;
-            mint(env, b"PRIME", streak_bonus as i128, env.caller_env.account_caller.to_vec().as_slice());
+            mint(env, env.caller_env.account_caller.to_vec().as_slice(), streak_bonus as i128, b"PRIME");
         }
     } else if delta > 2 {
         kv_put(env, &bcat(&[b"bic:lockup_prime:next_checkin_epoch:", &env.caller_env.account_caller]), env.caller_env.entry_epoch.saturating_add(2).to_string().as_bytes());

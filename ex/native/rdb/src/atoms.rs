@@ -33,6 +33,7 @@ rustler::atoms! {
     entry_prev_slot,
     entry_height,
     entry_epoch,
+    entry_full,
 
     tx,
     tx_encoded,
@@ -54,7 +55,6 @@ rustler::atoms! {
 
     tx_cost,
     tx_historical_cost,
-    tx_size,
 
     direction,
     root,

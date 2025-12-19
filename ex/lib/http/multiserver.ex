@@ -144,9 +144,9 @@ defmodule Ama.MultiServer do
                 result = API.Epoch.sol_in_epoch(:erlang.binary_to_integer(sol_epoch), Base58.decode(sol_hash))
                 quick_reply(state, result)
 
-            r.method == "POST" and String.starts_with?(r.path, "/api/contract/validate_bytecode") ->
+            r.method == "POST" and String.starts_with?(r.path, "/api/contract/validate") ->
                 {r, bytecode} = Photon.HTTP.read_body_all(state.socket, r)
-                result = API.Contract.validate_bytecode(bytecode)
+                result = API.Contract.validate(bytecode)
                 quick_reply(%{state|request: r}, result)
             r.method == "POST" and r.path == "/api/contract/get" ->
                 {r, key} = Photon.HTTP.read_body_all(state.socket, r)
@@ -156,6 +156,19 @@ defmodule Ama.MultiServer do
                 {r, key} = Photon.HTTP.read_body_all(state.socket, r)
                 result = API.Contract.get_prefix(key)
                 quick_reply(%{state|request: r}, RDB.vecpak_encode(result))
+            r.method == "POST" and r.path == "/api/contract/view" ->
+                {r, vecpak} = Photon.HTTP.read_body_all(state.socket, r)
+                m = RDB.vecpak_decode(vecpak)
+                {success, result, logs} = API.Contract.view(m.contract, m.function, m.args, m[:pk])
+                logs = Enum.map(logs, & RocksDB.ascii_dump(&1))
+                quick_reply(%{state|request: r}, JSX.encode!(%{success: success, result: RocksDB.ascii_dump(result), logs: logs}))
+            r.method == "GET" and String.starts_with?(r.path, "/api/contract/view") ->
+                [contract, function] = String.replace(r.path, "/api/contract/view/", "") |> :binary.split("/")
+                contract = Base58.decode(contract)
+                query = r.query && Photon.HTTP.parse_query(r.query)
+                {success, result, logs} = API.Contract.view(contract, function, [], query[:pk])
+                logs = Enum.map(logs, & RocksDB.ascii_dump(&1))
+                quick_reply(state, JSX.encode!(%{success: success, result: RocksDB.ascii_dump(result), logs: logs}))
             r.method == "GET" and String.starts_with?(r.path, "/api/contract/richlist") ->
                 {result, _count} = API.Contract.richlist()
                 quick_reply(state, JSX.encode!(%{error: :ok, richlist: result}))

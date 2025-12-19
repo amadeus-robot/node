@@ -1,10 +1,10 @@
 import * as sdk from "./sdk";
 import { b, bcat, b58 } from "./sdk";
 
-export function balance(symbol_ptr: i32): void {
-  let symbol = sdk.memory_read_string(symbol_ptr)
-  let balance = sdk.bToI64(sdk.kv_get(userVaultKey(symbol)))
-  sdk.ret(balance);
+export function init(): void {
+  //Mint 1b USDFAKE to this account with 9 decimals
+  //Mintable = false, pausable = false, soulbound = false
+  sdk.call("Coin", "create_and_mint", [b("USDFAKE"), sdk.coin_raw(1_000_000_000), b("9"), b("false"), b("false"), b("false")])
 }
 
 export function deposit(): void {
@@ -31,16 +31,6 @@ export function withdraw(symbol_ptr: i32, amount_ptr: i32): void {
   sdk.call("Coin", "transfer", [sdk.account_caller(), b(amount), b(symbol)])
 
   sdk.ret(`${user_balance - amount_int}`);
-}
-
-export function burn(symbol_ptr: i32, amount_ptr: i32): void {
-  let symbol = sdk.memory_read_string(symbol_ptr);
-  let amount = sdk.memory_read_string(amount_ptr);
-  sdk.log(`burn ${symbol} ${amount}`)
-
-  let burn_address = new Uint8Array(48) //zeros
-  let result = sdk.call(b("Coin"), "transfer", [burn_address, b(amount), b(symbol)])
-  sdk.ret(result);
 }
 
 function userVaultKey(symbol: string): Uint8Array {

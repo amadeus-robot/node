@@ -2,6 +2,8 @@ pub mod consensus;
 pub mod atoms;
 pub mod model;
 pub mod mpt;
+pub mod tx_filter;
+
 
 use rustler::types::{Binary, OwnedBinary};
 use rustler::{
@@ -676,26 +678,17 @@ pub fn fixed<const N: usize>(t: Term<'_>) -> Result<[u8; N], Error> {
 }
 
 #[rustler::nif(schedule = "DirtyCpu")]
-fn apply_entry<'a>(env: Env<'a>, db: ResourceArc<DbResource>, next_entry_trimmed_map: Term<'a>, pk: Binary, sk: Binary, txus: Vec<Term<'a>>,
-    testnet: bool, testnet_peddlebikes: Vec<Binary>) -> Result<Term<'a>, Error> {
-    let entry_signer = fixed::<48>(next_entry_trimmed_map.map_get(atoms::entry_signer())?)?;
-    let entry_prev_hash = fixed::<32>(next_entry_trimmed_map.map_get(atoms::entry_prev_hash())?)?;
-    let entry_vr = fixed::<96>(next_entry_trimmed_map.map_get(atoms::entry_vr())?)?;
-    let entry_vr_b3 = fixed::<32>(next_entry_trimmed_map.map_get(atoms::entry_vr_b3())?)?;
-    let entry_dr = fixed::<32>(next_entry_trimmed_map.map_get(atoms::entry_dr())?)?;
-
-    let entry_slot = next_entry_trimmed_map.map_get(atoms::entry_slot())?.decode::<u64>()?;
-    let entry_prev_slot = next_entry_trimmed_map.map_get(atoms::entry_prev_slot())?.decode::<u64>()?;
-    let entry_height = next_entry_trimmed_map.map_get(atoms::entry_height())?.decode::<u64>()?;
-    let entry_epoch = next_entry_trimmed_map.map_get(atoms::entry_epoch())?.decode::<u64>()?;
+fn apply_entry<'a>(env: Env<'a>, db: ResourceArc<DbResource>, entry_vecpak: Binary, pk: Binary, sk: Binary,
+    testnet: bool, testnet_peddlebikes: Vec<Binary>) -> Result<Term<'a>, Error>
+{
+    let entry = crate::model::entry::from_bytes(entry_vecpak.as_slice()).map_err(|_| Error::BadArg)?;
 
     let txn_opts = TransactionOptions::default();
     let write_opts = WriteOptions::default();
     let txn = db.db.transaction_opt(&write_opts, &txn_opts);
 
-    let (txn, muts, muts_rev, result_log, receipts, root_receipts, root_contractstate) =
-        consensus::consensus_apply::apply_entry(&db.db, pk.as_slice(), sk.as_slice(), &entry_signer, &entry_prev_hash,
-            entry_slot, entry_prev_slot, entry_height, entry_epoch, &entry_vr, &entry_vr_b3, &entry_dr, txus, txn,
+    let (txn, muts, muts_rev, receipts, root_receipts, root_contractstate) =
+        consensus::consensus_apply::apply_entry(&db.db, txn, entry, pk.as_slice(), sk.as_slice(),
             testnet, testnet_peddlebikes.iter().map(|bin| bin.as_slice().to_vec()).collect()
         );
 
@@ -724,8 +717,57 @@ fn apply_entry<'a>(env: Env<'a>, db: ResourceArc<DbResource>, next_entry_trimmed
         receipts_list.push(map);
     }
 
-    Ok((term_txn, consensus_muts::mutations_to_map(muts), consensus_muts::mutations_to_map(muts_rev), result_log, receipts_list,
+    Ok((term_txn, consensus_muts::mutations_to_map(muts), consensus_muts::mutations_to_map(muts_rev), receipts_list,
         Binary::from_owned(ob1, env).encode(env), Binary::from_owned(ob2, env).encode(env)).encode(env))
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn contract_view<'a>(env: Env<'a>, db: ResourceArc<DbResource>, entry_vecpak: Binary, view_pk: Binary,
+    contract: Binary, function: Binary, fargs: Vec<Binary>, testnet: bool) -> Result<Term<'a>, Error>
+{
+    let entry = crate::model::entry::from_bytes(entry_vecpak.as_slice()).map_err(|_| Error::BadArg)?;
+
+    let (success, result, logs) = consensus::consensus_apply::contract_view(
+        &db.db, entry, view_pk.as_slice().to_vec(),
+        contract.as_slice().to_vec(), function.as_slice().to_vec(), fargs.iter().map(|bin| bin.as_slice().to_vec()).collect(),
+        testnet
+    );
+
+    let mut ob_result = OwnedBinary::new(result.len()).ok_or_else(|| Error::Term(Box::new("alloc failed"))).unwrap();
+    ob_result.as_mut_slice().copy_from_slice(&result);
+
+    let mut logs_list = Vec::new();
+    for l in logs {
+        let mut ob_log = OwnedBinary::new(l.len()).ok_or_else(|| Error::Term(Box::new("alloc failed"))).unwrap();
+        ob_log.as_mut_slice().copy_from_slice(&l);
+        logs_list.push(Binary::from_owned(ob_log, env))
+    };
+
+    Ok((success, Binary::from_owned(ob_result, env), logs_list).encode(env))
+}
+
+#[rustler::nif(schedule = "DirtyCpu")]
+fn contract_validate<'a>(env: Env<'a>, db: ResourceArc<DbResource>, entry_vecpak: Binary, wasmbytes: Binary,
+    testnet: bool) -> Result<Term<'a>, Error>
+{
+    let entry = crate::model::entry::from_bytes(entry_vecpak.as_slice()).map_err(|_| Error::BadArg)?;
+
+    let (result, logs) = consensus::consensus_apply::contract_validate(
+        &db.db, entry, wasmbytes.as_slice(),
+        testnet
+    );
+
+    let mut ob_result = OwnedBinary::new(result.len()).ok_or_else(|| Error::Term(Box::new("alloc failed"))).unwrap();
+    ob_result.as_mut_slice().copy_from_slice(&result);
+
+    let mut logs_list = Vec::new();
+    for l in logs {
+        let mut ob_log = OwnedBinary::new(l.len()).ok_or_else(|| Error::Term(Box::new("alloc failed"))).unwrap();
+        ob_log.as_mut_slice().copy_from_slice(&l);
+        logs_list.push(Binary::from_owned(ob_log, env))
+    };
+
+    Ok((Binary::from_owned(ob_result, env), logs_list).encode(env))
 }
 
 #[rustler::nif]
@@ -958,7 +1000,6 @@ fn contract_view<'a>(env: Env<'a>, db: ResourceArc<DbResource>, cur_entry_trimme
 fn protocol_constants<'a>(env: Env<'a>) -> Term<'a> {
     let mut map = Term::map_new(env);
 
-
     map = map.map_put(atoms::forkheight(), protocol::FORKHEIGHT).ok().unwrap();
 
     map = map.map_put(atoms::ama_1_dollar(), protocol::AMA_1_DOLLAR).ok().unwrap();
@@ -988,7 +1029,7 @@ fn protocol_epoch_emission<'a>(env: Env<'a>, epoch: u64) -> i128 {
     crate::consensus::bic::epoch::epoch_emission(epoch)
 }
 
-#[rustler::nif]
+#[rustler::nif(schedule = "DirtyCpu")]
 fn protocol_circulating_without_burn<'a>(env: Env<'a>, epoch: u64) -> i128 {
     crate::consensus::bic::epoch::circulating_without_burn(epoch)
 }
@@ -1026,6 +1067,13 @@ fn mpt_verify_proof<'a>(env: Env<'a>, root: Binary, index: Term<'a>, proof: Vec<
             Ok((atoms::error(), e).encode(env))
         }
     }
+fn build_tx_hashfilter<'a>(env: Env<'a>, signer: Binary<'a>, arg0: Binary<'a>, contract: Binary<'a>, function: Binary<'a>) -> Binary<'a> {
+    let key = tx_filter::create_filter_key(&[&signer, &arg0, &contract, &function]);
+    to_binary2(env, &key)
+}
+
+fn build_tx_hashfilters<'a>(env: Env<'a>, txus: Vec<Term<'a>>) -> NifResult<Vec<(Binary<'a>, Binary<'a>)>> {
+    tx_filter::build_tx_hashfilters(env, txus)
 }
 
 rustler::init!("Elixir.RDB", load = on_load);

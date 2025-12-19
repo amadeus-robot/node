@@ -208,7 +208,7 @@ defmodule SpecialMeetingAttestGen do
     1 = length(entry.txs)
     txu = hd(entry.txs)
     %{contract: "Epoch", function: "slash_trainer", args: args} = TX.action(txu)
-    [epoch, malicious_pk, signature, mask_size, mask] = args
+    [malicious_pk, epoch, signature, mask_size, mask] = args
     epoch = if is_binary(epoch) do :erlang.binary_to_integer(epoch) else epoch end
     mask_size = if is_binary(mask_size) do :erlang.binary_to_integer(mask_size) else mask_size end
 
@@ -219,7 +219,7 @@ defmodule SpecialMeetingAttestGen do
     cond do
         DB.Chain.epoch() != epoch -> nil
         Entry.validate_next(cur_entry, entry) != %{error: :ok} -> nil
-        BIC.Epoch.slash_trainer_verify(epoch, malicious_pk, trainers, mask, signature) != nil -> nil
+        BIC.Epoch.slash_trainer_verify(malicious_pk, epoch, trainers, mask, signature) != nil -> nil
 
         has_double_entry(malicious_pk)
         or (!!calcSlow(malicious_pk) and calcSlow(malicious_pk) > 600)

@@ -36,6 +36,14 @@ pub fn pl_get_varint(pairs: &[(Term, Term)], key: &[u8]) -> i128 {
 }
 
 #[inline]
+pub fn pl_get_varint_opt(pairs: &[(Term, Term)], key: &[u8]) -> Option<i128> {
+    match pl_find_opt(pairs, key) {
+        Some(Term::VarInt(x)) => Some(*x),
+        _ => None,
+    }
+}
+
+#[inline]
 pub fn pl_get_u64(pairs: &[(Term, Term)], key: &[u8]) -> u64 {
     pl_get_varint(pairs, key) as u64
 }
@@ -52,5 +60,20 @@ pub fn pl_get_list<'a>(pairs: &'a [(Term, Term)], key: &[u8]) -> &'a [Term] {
     match pl_find(pairs, key) {
         Term::List(v) => v.as_slice(),
         _ => unreachable!(),
+    }
+}
+
+#[inline]
+pub fn pl_find_opt<'a>(pairs: &'a [(Term, Term)], key: &[u8]) -> Option<&'a Term> {
+    pairs.iter()
+        .find(|(k, _)| matches!(k, Term::Binary(b) if b.as_slice() == key))
+        .map(|(_, v)| v)
+}
+
+#[inline]
+pub fn pl_get_bytes_opt<'a>(pairs: &'a [(Term, Term)], key: &[u8]) -> Option<&'a [u8]> {
+    match pl_find_opt(pairs, key) {
+        Some(Term::Binary(v)) => Some(v.as_slice()),
+        _ => None,
     }
 }

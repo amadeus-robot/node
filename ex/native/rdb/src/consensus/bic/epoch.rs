@@ -250,9 +250,9 @@ pub fn kv_get_trainers_removed(env: &mut crate::consensus::consensus_apply::Appl
 
 pub fn call_slash_trainer(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: Vec<Vec<u8>>) {
     if args.len() != 5 { panic_any("invalid_args") }
-    let epoch = args[0].as_slice();
+    let malicious_pk = args[0].as_slice();
+    let epoch = args[1].as_slice();
     let epoch = std::str::from_utf8(&epoch).ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or_else(|| panic_any("invalid_epoch"));
-    let malicious_pk = args[1].as_slice();
     let signature = args[2].as_slice();
     let mask_size = args[3].as_slice();
     let mask_size = std::str::from_utf8(&mask_size).ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or_else(|| panic_any("invalid_mask_size"));

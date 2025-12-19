@@ -153,18 +153,18 @@ pub fn call_create_and_mint(env: &mut crate::consensus::consensus_apply::ApplyEn
 
 pub fn call_mint(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: Vec<Vec<u8>>) {
     if args.len() != 3 { panic_any("invalid_args") }
-    let symbol = args[0].as_slice();
+    let receiver = args[0].as_slice();
     let amount = args[1].as_slice();
     let amount = std::str::from_utf8(&amount).ok().and_then(|s| s.parse::<i128>().ok()).unwrap_or_else(|| panic_any("invalid_amount"));
-    let receiver = args[2].as_slice();
+    let symbol = args[2].as_slice();
     if receiver.len() != 48 { panic_any("invalid_receiver_pk") }
 
     if !has_permission(env, &symbol, &env.caller_env.account_caller.clone()) { panic_any("no_permissions") }
 
-    mint(env, symbol, amount, receiver);
+    mint(env, receiver, amount, symbol);
 }
 
-pub fn mint(env: &mut crate::consensus::consensus_apply::ApplyEnv, symbol: &[u8], amount: i128, receiver: &[u8]) {
+pub fn mint(env: &mut crate::consensus::consensus_apply::ApplyEnv, receiver: &[u8], amount: i128, symbol: &[u8]) {
     if !(consensus::bls12_381::validate_public_key(receiver)) { panic_any("invalid_receiver_pk") }
     if amount <= 0 { panic_any("invalid_amount") }
 

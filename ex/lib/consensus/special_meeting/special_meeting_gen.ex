@@ -131,7 +131,7 @@ defmodule SpecialMeetingGen do
       st.attempts > 3 -> Map.delete(state, :slash_trainer)
 
       st.type == :tx and (st.tx.aggsig.mask_set_size / st.tx.aggsig.mask_size) >= 0.67 ->
-        txu = build_slash_tx(st.epoch, st.mpk, st.tx.aggsig.aggsig, st.tx.aggsig.mask, st.tx.aggsig.mask_size)
+        txu = build_slash_tx(st.mpk, st.epoch, st.tx.aggsig.aggsig, st.tx.aggsig.mask, st.tx.aggsig.mask_size)
         IO.inspect txu
         TXPool.insert_and_broadcast(txu, %{peers: 0})
         Map.delete(state, :slash_trainer)
@@ -166,9 +166,9 @@ defmodule SpecialMeetingGen do
     end
   end
 
-  def build_slash_tx(epoch, mpk, aggsig, mask, mask_size) do
+  def build_slash_tx(mpk, epoch, aggsig, mask, mask_size) do
     my_sk = Application.fetch_env!(:ama, :trainer_sk)
-    TX.build(my_sk, "Epoch", "slash_trainer", ["#{epoch}", mpk, aggsig, "#{mask_size}", mask])
+    TX.build(my_sk, "Epoch", "slash_trainer", [mpk, "#{epoch}", aggsig, "#{mask_size}", mask])
   end
 
   def build_slash_entry(st) do

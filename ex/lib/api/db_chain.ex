@@ -47,6 +47,10 @@ defmodule DB.Chain do
     RocksDB.get("account:#{pk}:balance:#{symbol}", db_handle(db_opts, :contractstate, %{to_integer: true})) || 0
   end
 
+  def balance_nft(pk, collection, token, db_opts \\ %{}) do
+    RocksDB.get("account:#{pk}:nft:#{collection}:#{token}", db_handle(db_opts, :contractstate, %{to_integer: true})) || 0
+  end
+
   def tx(tx_hash, db_opts \\ %{}) do
       map = RocksDB.get(tx_hash, db_handle(db_opts, :tx, %{}))
       if map do
@@ -54,9 +58,12 @@ defmodule DB.Chain do
           entry_bytes = RocksDB.get(map.entry_hash, db_handle(db_opts, :entry, %{}))
           entry = DB.Entry.by_hash(map.entry_hash, db_opts)
           tx_bytes = binary_part(entry_bytes, map.index_start, map.index_size)
+
+          receipt = if map[:result] do map.result else map.receipt end
+
           TX.unpack(tx_bytes)
-          |> Map.put(:result, map[:result])
-          |> Map.put(:metadata, %{entry_hash: map.entry_hash, entry_height: entry.header.height, entry_slot: entry.header.slot})
+          |> Map.put(:receipt, receipt)
+          |> Map.put(:metadata, %{entry_hash: map.entry_hash, entry_height: entry.header.height})
       end
   end
 

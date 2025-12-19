@@ -1,21 +1,71 @@
 defmodule API.TX do
-    def get(tx_id) do
-        tx_id = if byte_size(tx_id) != 32, do: Base58.decode(tx_id), else: tx_id
-        DB.Chain.tx(tx_id)
+    def get(txid) do
+        txid = API.maybe_b58(32, txid)
+        DB.Chain.tx(txid)
         |> format_tx_for_client()
     end
 
     def get_by_entry(entry_hash) do
-        entry_hash = if byte_size(entry_hash) != 32, do: Base58.decode(entry_hash), else: entry_hash
+        entry_hash = API.maybe_b58(32, entry_hash)
         case DB.Entry.by_hash(entry_hash) do
             nil -> nil
-            %{hash: entry_hash, header: %{slot: slot}, txs: txs} ->
+            %{hash: entry_hash, header: %{height: height}, txs: txs} ->
                 Enum.map(txs, fn(txu)->
                     txu = TX.unpack(txu)
-                    |> Map.put(:metadata, %{entry_hash: entry_hash, entry_slot: slot})
+                    |> Map.put(:metadata, %{entry_hash: entry_hash, entry_height: height})
                     format_tx_for_client(txu)
                 end)
         end
+    end
+
+    # e 44225212
+    def get_by_filter(filters = %{}) do
+      signer = filters[:signer] || filters[:sender] || filters[:pk] || <<0>>
+      arg0 = filters[:arg0] || filters[:receiver] || <<0>>
+      contract = filters[:contract] || <<0>>
+      function = filters[:function] || <<0>>
+      hashfilter = RDB.build_tx_hashfilter(signer, arg0, contract, function)
+
+      limit = filters[:limit] || 100
+      offset = filters[:offset] || 0
+      sort = filters[:sort] || :asc
+      start_key = if sort == :asc do "" else filters[:cursor] || :binary.copy("9", 20) end
+
+      grep_func = case sort do
+          :desc -> &RocksDB.get_prev/3
+          _ -> &RocksDB.get_next/3
+      end
+
+      %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
+      Enum.reduce_while(0..9_999_999, {nil, []}, fn(idx, {next_key, acc}) ->
+          {next_key, value} = if idx == 0 do
+              grep_func.("#{hashfilter}:", start_key, %{db: db, cf: cf.tx_filter, offset: offset})
+          else
+              grep_func.("#{hashfilter}:", next_key, %{db: db, cf: cf.tx_filter})
+          end
+
+          if !next_key do {:halt, {next_key, acc}} else
+              txu = API.TX.get(value)
+              txu = cond do
+                signer == txu.tx.signer -> txu |> put_in([:metadata, :tx_event], :sent)
+                arg0 == List.first(txu.tx.action.args) -> txu |> put_in([:metadata, :tx_event], :recv)
+                true -> txu
+              end
+
+              action = TX.action(txu)
+              cond do
+                  !!filters[:contract] and filters.contract != action.contract -> {:cont, {next_key, acc}}
+                  !!filters[:function] and filters.function != action.function -> {:cont, {next_key, acc}}
+                  true ->
+                      acc = acc ++ [txu]
+                      if length(acc) >= limit do
+                          {:halt, {next_key, acc}}
+                      else
+                          {:cont, {next_key, acc}}
+                      end
+              end
+          end
+      end)
     end
 
     def get_by_address(pk, filters) do
@@ -38,7 +88,7 @@ defmodule API.TX do
     end
 
     def get_by_address_sent(pk, filters) do
-        pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
+        pk = API.maybe_b58(48, pk)
 
         {grep_func, start_key} = case filters.sort do
             :desc -> {&RocksDB.get_prev/3, (filters[:cursor] || :binary.copy("9", 20)) |> String.pad_leading(20, "0")}
@@ -47,6 +97,9 @@ defmodule API.TX do
 
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
         Enum.reduce_while(0..9_999_999, {nil, []}, fn(idx, {next_key, acc}) ->
+            #TODO: fix filter indexes
+            if idx >= 1_000, do: throw(%{error: :timeout})
+
             {next_key, value} = if idx == 0 do
                 grep_func.("#{pk}:", start_key, %{db: db, cf: cf.tx_account_nonce, offset: filters.offset})
             else
@@ -73,7 +126,7 @@ defmodule API.TX do
     end
 
     def get_by_address_recv(pk, filters) do
-        pk = if byte_size(pk) != 48, do: Base58.decode(pk), else: pk
+        pk = API.maybe_b58(48, pk)
 
         {grep_func, start_key} = case filters.sort do
             :desc -> {&RocksDB.get_prev/3, (filters[:cursor] || :binary.copy("9", 20)) |> String.pad_leading(20, "0")}
@@ -82,6 +135,9 @@ defmodule API.TX do
 
         %{db: db, cf: cf} = :persistent_term.get({:rocksdb, Fabric})
         Enum.reduce_while(0..9_999_999, {nil, []}, fn(idx, {next_key, acc}) ->
+            #TODO: fix filter indexes
+            if idx >= 1_000, do: throw(%{error: :timeout})
+
             {next_key, value} = if idx == 0 do
                 grep_func.("#{pk}:", start_key, %{db: db, cf: cf.tx_receiver_nonce, offset: filters.offset})
             else
@@ -110,23 +166,8 @@ defmodule API.TX do
         result = TX.validate(tx_packed |> TX.unpack())
         if result[:error] == :ok do
             txu = result.txu
-            if tx_packed =~ "deploy" do
-                action = TX.action(txu)
-                if action.contract == "Contract" and action.function == "deploy" do
-                    case BIC.Contract.validate(List.first(action.args)) do
-                        %{error: :ok} ->
-                            TXPool.insert_and_broadcast(txu)
-                            %{error: :ok, hash: Base58.encode(result.txu.hash)}
-                        error -> error
-                    end
-                else
-                    TXPool.insert_and_broadcast(txu)
-                    %{error: :ok, hash: Base58.encode(result.txu.hash)}
-                end
-            else
-                TXPool.insert_and_broadcast(txu)
-                %{error: :ok, hash: Base58.encode(result.txu.hash)}
-            end
+            TXPool.insert_and_broadcast(txu)
+            %{error: :ok, hash: Base58.encode(result.txu.hash)}
         else
             %{error: result.error}
         end
@@ -136,26 +177,9 @@ defmodule API.TX do
       result = TX.validate(tx_packed |> TX.unpack())
       if result[:error] == :ok do
           txu = result.txu
-          if tx_packed =~ "deployyy" do
-              action = TX.action(txu)
-              if action.contract == "Contract" and action.function == "deploy" do
-                  case BIC.Contract.validate(List.first(action.args)) do
-                      %{error: :ok} ->
-                          if broadcast do TXPool.insert_and_broadcast(txu) else TXPool.insert(txu) end
-                          txres = submit_and_wait_1(result.txu.hash)
-                          %{error: :ok, hash: Base58.encode(result.txu.hash), entry_hash: txres.metadata.entry_hash, result: txres[:result]}
-                      error -> error
-                  end
-              else
-                  if broadcast do TXPool.insert_and_broadcast(txu) else TXPool.insert(txu) end
-                  txres = submit_and_wait_1(result.txu.hash)
-                  %{error: :ok, hash: Base58.encode(result.txu.hash), entry_hash: txres.metadata.entry_hash, result: txres[:result]}
-              end
-          else
-              if broadcast do TXPool.insert_and_broadcast(txu) else TXPool.insert(txu) end
-              txres = submit_and_wait_1(result.txu.hash)
-              %{error: :ok, hash: Base58.encode(result.txu.hash), entry_hash: txres.metadata.entry_hash, result: txres[:result]}
-          end
+          if broadcast do TXPool.insert_and_broadcast(txu) else TXPool.insert(txu) end
+          txres = submit_and_wait_1(result.txu.hash)
+          %{error: :ok, hash: Base58.encode(result.txu.hash), metadata: txres.metadata, receipt: txres.receipt}
       else
           %{error: result.error}
       end
@@ -188,6 +212,19 @@ defmodule API.TX do
         action = Map.put(action, :args, args)
 
         tx = put_in(tx, [:tx, :action], action)
+        {_, tx} = pop_in(tx, [:tx, :actions])
+
+        result = tx[:receipt][:result] || tx[:receipt][:error] || tx[:result][:result] || tx[:result][:error]
+        success = tx[:receipt][:success] || result == "ok"
+        logs = tx[:receipt][:logs] || []
+        exec_used = tx[:receipt][:exec_used] || tx[:result][:exec_used] || "0"
+
+        logs = Enum.map(logs, fn(line)-> RocksDB.ascii_dump(line) end)
+        receipt = %{success: success, result: result, logs: logs, exec_used: exec_used}
+
+        #TODO: remove result later
+        tx = Map.put(tx, :result, %{error: result})
+        tx = Map.put(tx, :receipt, receipt)
 
         if !Map.has_key?(tx, :metadata) do tx else
             put_in(tx, [:metadata, :entry_hash], Base58.encode(tx.metadata.entry_hash))

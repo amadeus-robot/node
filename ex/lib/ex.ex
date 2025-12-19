@@ -96,6 +96,8 @@ defmodule Ama do
     if !Application.fetch_env!(:ama, :testnet) do
       {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{id: FabricSyncAttestGen, start: {FabricSyncAttestGen, :start_link, []}})
       {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{id: FabricSyncGen, start: {FabricSyncGen, :start_link, []}})
+      #TODO: remove it later
+      {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{id: DB.Entry.Hashbuilder, start: {DB.Entry.Hashbuilder, :start_link, []}})
     end
 
     {:ok, _} = DynamicSupervisor.start_child(Ama.Supervisor, %{id: ComputorGen, start: {ComputorGen, :start_link, []}})

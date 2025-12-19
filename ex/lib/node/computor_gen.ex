@@ -25,10 +25,10 @@ defmodule ComputorGen do
 
   def handle_info(:tick, state) do
     state = cond do
-      not Application.fetch_env!(:ama, :testnet) ->
+      !state[:enabled] -> state
+      !Application.fetch_env!(:ama, :testnet) ->
         IO.puts "Computor currently cannot find sols on mainnet due to difficulty. Do not waste CPU running it."
         state
-      !state[:enabled] -> state
       !FabricSyncAttestGen.isQuorumIsInEpoch() ->
         IO.puts "🔴 cannot compute: out_of_sync"
         state
