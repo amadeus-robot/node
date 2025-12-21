@@ -85,6 +85,9 @@ pub fn call_mint(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: Ve
     let token = args[3].as_slice();
     if receiver.len() != 48 { panic_any("invalid_receiver_pk") }
 
+    if token.len() < 1 { panic_any("token_too_short") }
+    if token.len() > 32 { panic_any("token_too_long") }
+
     match view_account(env, collection) {
         None => panic_any("collection_doesnt_exist"),
         Some(account) => {

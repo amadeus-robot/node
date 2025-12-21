@@ -1,5 +1,21 @@
 use alloc::{vec::Vec, string::{String, ToString}};
 
+pub fn read_bytes(ptr: i32) -> Vec<u8> {
+    unsafe {
+        let len = *(ptr as *const i32);
+        let data = (ptr + 4) as *const u8;
+        core::slice::from_raw_parts(data, len as usize).to_vec()
+    }
+}
+
+pub fn read_string(ptr: i32) -> String {
+    String::from_utf8(read_bytes(ptr)).unwrap_or_default()
+}
+
+pub fn read_u64(ptr: i32) -> u64 {
+    unsafe { *(ptr as *const u64) }
+}
+
 const B58: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 pub fn b58_encode(input: &[u8]) -> String {
@@ -49,45 +65,35 @@ pub fn hex_encode(bytes: &[u8]) -> String {
     r
 }
 
-pub fn bcat(items: &[&[u8]]) -> Vec<u8> {
-    let mut r = Vec::with_capacity(items.iter().map(|i| i.len()).sum());
-    for i in items { r.extend_from_slice(i); }
-    r
-}
-
-pub fn bytes_to_i64(data: &[u8]) -> i64 {
-    core::str::from_utf8(data).ok()
-        .and_then(|s| parse_i64(s))
-        .unwrap_or(0)
-}
-
-pub fn bytes_to_u64(data: &[u8]) -> u64 {
-    core::str::from_utf8(data).ok()
-        .and_then(|s| parse_u64(s))
-        .unwrap_or(0)
-}
-
-fn parse_i64(s: &str) -> Option<i64> {
-    let (neg, s) = if s.starts_with('-') { (true, &s[1..]) } else { (false, s) };
-    let mut r = 0i64;
-    for c in s.chars() {
-        if !c.is_ascii_digit() { return None; }
-        r = r * 10 + (c as i64 - '0' as i64);
-    }
-    Some(if neg { -r } else { r })
-}
-
-fn parse_u64(s: &str) -> Option<u64> {
-    let mut r = 0u64;
-    for c in s.chars() {
-        if !c.is_ascii_digit() { return None; }
-        r = r * 10 + (c as u64 - '0' as u64);
-    }
-    Some(r)
-}
-
 pub fn coin_raw(amount: u64, decimals: u32) -> Vec<u8> {
     let mut m = 1u64;
     for _ in 0..decimals { m *= 10; }
     (amount * m).to_string().as_bytes().to_vec()
 }
+
+macro_rules! impl_bytes_to_int {
+    ($fn_name:ident, $type:ty) => {
+        pub fn $fn_name(data: &[u8]) -> $type {
+            let s = match core::str::from_utf8(data) {
+                Ok(s) => s.trim(),
+                Err(_) => $crate::abort!("invalid_utf8_string_as_integer"),
+            };
+
+            match s.parse::<$type>() {
+                Ok(n) => n,
+                Err(_) => $crate::abort!("invalid_integer_format"),
+            }
+        }
+    };
+}
+
+impl_bytes_to_int!(bytes_to_i8, i8);
+impl_bytes_to_int!(bytes_to_i16, i16);
+impl_bytes_to_int!(bytes_to_i32, i32);
+impl_bytes_to_int!(bytes_to_i64, i64);
+impl_bytes_to_int!(bytes_to_i128, i128);
+impl_bytes_to_int!(bytes_to_u8, u8);
+impl_bytes_to_int!(bytes_to_u16, u16);
+impl_bytes_to_int!(bytes_to_u32, u32);
+impl_bytes_to_int!(bytes_to_u64, u64);
+impl_bytes_to_int!(bytes_to_u128, u128);

@@ -2,43 +2,50 @@
 #![no_main]
 extern crate alloc;
 use amadeus_sdk::*;
-use alloc::{vec::Vec, string::ToString};
+use alloc::{vec::Vec};
 
-fn vault_key(symbol: &str) -> Vec<u8> {
-    let mut k = b"vault:".to_vec();
-    k.extend_from_slice(&account_caller());
-    k.push(b':');
-    k.extend_from_slice(symbol.as_bytes());
-    k
+fn vault_key(symbol: &Vec<u8>) -> Vec<u8> {
+    b!("vault:", account_caller(), ":", symbol)
 }
 
 #[no_mangle]
 pub extern "C" fn balance(symbol_ptr: i32) {
-    let key = vault_key(&read_string(symbol_ptr));
-    ret(encoding::bytes_to_i64(kv_get(key.as_slice()).as_deref().unwrap_or_default()));
+    let key = vault_key(&read_bytes(symbol_ptr));
+    ret(kv_get(key).unwrap_or(0));
 }
 
 #[no_mangle]
 pub extern "C" fn deposit() {
-    let symbol = attached_symbol();
-    let amount = attached_amount();
-    log("deposit");
-    ret(kv_increment(vault_key(&symbol).as_slice(), amount.as_str()));
+    log("deposit called");
+
+    let (has_attachment, (symbol, amount)) = get_attachment();
+    amadeus_sdk::assert!(has_attachment, "deposit has no attachment");
+
+    let amount_i128 = i128::from_bytes(amount);
+    amadeus_sdk::assert!(amount_i128 > 100, "deposit amount less than 100");
+
+    let total_vault_deposited = kv_increment(vault_key(&symbol), amount_i128);
+    ret(total_vault_deposited);
 }
 
 #[no_mangle]
 pub extern "C" fn withdraw(symbol_ptr: i32, amount_ptr: i32) {
-    let symbol = read_string(symbol_ptr);
-    let amount = read_bytes(amount_ptr);
-    log("withdraw");
-    let amount_int = encoding::bytes_to_u64(&amount);
-    let key = vault_key(&symbol);
-    let balance = encoding::bytes_to_u64(kv_get(key.as_slice()).as_deref().unwrap_or_default());
-    amadeus_sdk::assert!(amount_int > 0, "amount lte 0");
-    amadeus_sdk::assert!(balance >= amount_int, "insufficient funds");
-    kv_increment(key.as_slice(), -(amount_int as i64));
-    call("Coin", "transfer", &[account_caller().as_slice(), amount.as_slice(), symbol.as_bytes()]);
-    ret((balance - amount_int).to_string());
+    log("withdraw called");
+
+    let withdraw_symbol = read_bytes(symbol_ptr);
+    let withdraw_amount = read_bytes(amount_ptr);
+    let withdraw_amount_int = encoding::bytes_to_i128(&withdraw_amount);
+    amadeus_sdk::assert!(withdraw_amount_int > 0, "amount lte 0");
+
+    let key = vault_key(&withdraw_symbol);
+    let vault_balance: i128 = kv_get(&key).unwrap_or(0);
+    amadeus_sdk::assert!(vault_balance >= withdraw_amount_int, "insufficient funds");
+
+    kv_increment(key, -withdraw_amount_int);
+
+    call!("Coin", "transfer", [account_caller(), withdraw_amount, withdraw_symbol]);
+
+    ret(vault_balance - withdraw_amount_int);
 }
 
 #[no_mangle]
@@ -46,5 +53,5 @@ pub extern "C" fn burn(symbol_ptr: i32, amount_ptr: i32) {
     let symbol = read_string(symbol_ptr);
     let amount = read_bytes(amount_ptr);
     log("burn");
-    ret(call("Coin", "transfer", &[&BURN_ADDRESS[..], amount.as_slice(), symbol.as_bytes()]));
+    ret(call!("Coin", "transfer", [BURN_ADDRESS, amount, symbol]));
 }
