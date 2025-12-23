@@ -244,7 +244,7 @@ export function ret<T>(retv: T): void {
 }
 
 @external("env", "import_kv_put")
-declare function import_kv_put(key_ptr: i32, key_len: i32, val_ptr: i32, val_len: i32);
+declare function import_kv_put(key_ptr: i32, key_len: i32, val_ptr: i32, val_len: i32): void;
 export function kv_put<K, V>(key: K, value: V): void {
   const keyBytes = toBytes<K>(key);
   const valueBytes = toBytes<V>(value);
@@ -261,7 +261,7 @@ export function kv_increment<K, V>(key: K, value: V): string {
 }
 
 @external("env", "import_kv_delete")
-declare function import_kv_delete(key_ptr: i32, key_len: i32);
+declare function import_kv_delete(key_ptr: i32, key_len: i32): void;
 export function kv_delete<K>(key: K): void {
   const keyBytes = toBytes<K>(key)
   import_kv_delete(changetype<i32>(keyBytes.dataStart), keyBytes.byteLength)
