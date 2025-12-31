@@ -26,14 +26,6 @@ cargo install amadeus-cli
 
 To build the wasm smart contracts, simply run the `./build_and_validate.sh`.
 The artifacts will be placed in `target/wasm32-unknown-unknown/release/examples`.
-Optionally you can optimize the resulting wasm contracts.
-
-```bash
-wasm-opt -Oz --enable-bulk-memory target/wasm32-unknown-unknown/release/examples/counter.wasm -o counter.wasm
-wasm-opt -Oz --enable-bulk-memory target/wasm32-unknown-unknown/release/examples/deposit.wasm -o deposit.wasm
-wasm-opt -Oz --enable-bulk-memory target/wasm32-unknown-unknown/release/examples/coin.wasm -o coin.wasm
-wasm-opt -Oz --enable-bulk-memory target/wasm32-unknown-unknown/release/examples/nft.wasm -o nft.wasm
-```
 
 ### Testing
 
@@ -49,8 +41,7 @@ ama get-pk --sk wallet.sk
 ama gen-sk counter.sk
 export COUNTER_PK=$(ama get-pk --sk counter.sk)
 ama tx --sk wallet.sk --url https://testnet-rpc.ama.one Coin transfer '[{"b58": "'$COUNTER_PK'"}, "2000000000", "AMA"]'
-ama deploy-tx --sk counter.sk counter.wasm --url https://testnet-rpc.ama.one
-ama tx --sk counter.sk --url https://testnet-rpc.ama.one $COUNTER_PK init '[]'
+ama deploy-tx --sk counter.sk counter.wasm init '[]' --url https://testnet-rpc.ama.one
 curl "https://testnet-rpc.ama.one/api/contract/view/$COUNTER_PK/get"
 ama tx --sk wallet.sk --url https://testnet-rpc.ama.one $COUNTER_PK increment '["5"]'
 curl "https://testnet-rpc.ama.one/api/contract/view/$COUNTER_PK/get"
@@ -66,7 +57,7 @@ ama tx --sk wallet.sk $DEPOSIT_PK balance '["AMA"]' --url https://testnet-rpc.am
 ama gen-sk coin.sk
 export COIN_PK=$(ama get-pk --sk coin.sk)
 ama tx --sk wallet.sk Coin transfer '[{"b58": "'$COIN_PK'"}, "2000000000", "AMA"]' --url https://testnet-rpc.ama.one
-ama deploy-tx --sk coin.sk coin.wasm --url https://testnet-rpc.ama.one
+ama deploy-tx --sk coin.sk coin.wasm init --url https://testnet-rpc.ama.one
 ama tx --sk wallet.sk $COIN_PK deposit '[]' AMA 1500000000 --url https://testnet-rpc.ama.one
 ama tx --sk wallet.sk $COIN_PK withdraw '["AMA", "500000000"]' --url https://testnet-rpc.ama.one
 ama tx --sk wallet.sk $COIN_PK withdraw '["AMA", "1000000000"]' --url https://testnet-rpc.ama.one

@@ -8,6 +8,7 @@ pub mod encoding;
 pub use context::*;
 pub use storage::*;
 pub use encoding::*;
+pub use amadeus_sdk_macros::contract;
 
 use core::panic::PanicInfo;
 
