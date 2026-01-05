@@ -51,13 +51,13 @@ pub fn call_unlock(env: &mut crate::consensus::consensus_apply::ApplyEnv, args: 
     let unlock_height = vault_parts[0].as_slice();
     let unlock_height = std::str::from_utf8(&unlock_height).ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or_else(|| panic_any("invalid_unlock_height"));
     let amount = vault_parts[1].as_slice();
-    let amount = std::str::from_utf8(&amount).ok().and_then(|s| s.parse::<u64>().ok()).unwrap_or_else(|| panic_any("invalid_unlock_amount"));
+    let amount = std::str::from_utf8(&amount).ok().and_then(|s| s.parse::<i128>().ok()).unwrap_or_else(|| panic_any("invalid_unlock_amount"));
     let symbol = vault_parts[2].as_slice();
 
     if env.caller_env.entry_height < unlock_height {
         panic_any("vault_is_locked")
     } else {
-        kv_increment(env, &bcat(&[b"account:", &env.caller_env.account_caller, b":balance:", symbol]), amount as i128);
+        kv_increment(env, &bcat(&[b"account:", &env.caller_env.account_caller, b":balance:", symbol]), amount);
         kv_delete(env, vault_key);
     }
 }
