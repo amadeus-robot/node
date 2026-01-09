@@ -29,11 +29,9 @@ fn bytes_to_nibbles(bytes: &[u8]) -> Vec<u8> {
 /// Decode hex-prefix encoding used in Ethereum MPT
 /// Returns (nibbles, is_leaf)
 fn decode_hex_prefix(encoded: &[u8]) -> (Vec<u8>, bool) {
-    if encoded.is_empty() {
+    let Some(&first) = encoded.first() else {
         return (vec![], false);
-    }
-
-    let first = encoded[0];
+    };
     let is_leaf = (first >> 4) >= 2;
     let is_odd = (first >> 4) % 2 == 1;
 
@@ -60,20 +58,16 @@ fn decode_hex_prefix(encoded: &[u8]) -> (Vec<u8>, bool) {
 /// # Returns
 /// * `Ok(value)` - Proof is valid and value was found
 /// * `Err(_)` - Proof is invalid
-pub fn verify_proof(
-    root: &[u8],
-    key: &[u8],
-    proof: &[Vec<u8>],
+pub fn verify_proof<'a>(
+    root: &'a [u8],
+    key: &'a [u8],
+    proof: impl Iterator<Item = &'a [u8]>,
 ) -> Result<Vec<u8>, String> {
     if root.len() != 32 {
         return Err(format!("Root must be 32 bytes, got {}", root.len()));
     }
 
     let root_hash = H256::from_slice(root);
-
-    if proof.is_empty() {
-        return Err("Proof is empty".to_string());
-    }
 
     // Convert key to nibbles
     let key_nibbles = bytes_to_nibbles(key);
@@ -82,28 +76,25 @@ pub fn verify_proof(
     // Expected hash starts with root
     let mut expected_hash = root_hash.as_bytes().to_vec();
 
-    for (i, node) in proof.iter().enumerate() {
+    for (i, node) in proof.enumerate() {
         // Verify node hash matches expected
         let node_hash = KeccakHasher::hash(node);
-        if node_hash.as_ref() != expected_hash.as_slice() {
-            // For inline nodes (< 32 bytes), the node itself might be the "hash"
-            if node.len() < 32 && node == &expected_hash {
-                // Inline node, continue
-            } else {
-                return Err(format!(
-                    "Hash mismatch at node {}: expected 0x{}, got 0x{}",
-                    i,
-                    encode(&expected_hash),
-                    encode(node_hash.as_ref())
-                ));
-            }
+        if expected_hash != node_hash {
+            return Err(format!(
+                "Hash mismatch at node {}: expected 0x{}, got 0x{}",
+                i,
+                encode(&expected_hash),
+                encode(node_hash.as_ref())
+            ));
         }
 
         let rlp = Rlp::new(node);
         let item_count = rlp.item_count().map_err(|e| format!("RLP decode error at node {}: {}", i, e))?;
+        const LEAF_NODE_ITEM_COUNT: usize = 2;
+        const BRANCH_NODE_ITEM_COUNT: usize = 17;
 
         match item_count {
-            2 => {
+            LEAF_NODE_ITEM_COUNT => {
                 // Extension or Leaf node
                 let path: Vec<u8> = rlp.at(0)
                     .map_err(|e| format!("Failed to get path at node {}: {}", i, e))?
@@ -113,19 +104,16 @@ pub fn verify_proof(
 
                 // Verify path matches our key
                 for nibble in &nibbles {
-                    if key_index >= key_nibbles.len() {
-                        return Err(format!("Key too short for path at node {}", i));
+                    match key_nibbles.get(key_index) {
+                        Some(expected_nibble) if nibble == expected_nibble => key_index += 1,
+                        Some(expected_nibble) => {
+                            return Err(format!(
+                                "Path mismatch at node {}, nibble {}: expected {}, got {}",
+                                i, key_index, expected_nibble, nibble
+                            ));
+                        }
+                        None => return Err(format!("Key too short for path at node {}", i)),
                     }
-                    if *nibble != key_nibbles[key_index] {
-                        return Err(format!(
-                            "Path mismatch at node {}, nibble {}: expected {}, got {}",
-                            i,
-                            key_index,
-                            key_nibbles[key_index],
-                            nibble
-                        ));
-                    }
-                    key_index += 1;
                 }
 
                 if is_leaf {
@@ -158,9 +146,9 @@ pub fn verify_proof(
                     }
                 }
             }
-            17 => {
+            BRANCH_NODE_ITEM_COUNT => {
                 // Branch node
-                if key_index >= key_nibbles.len() {
+                let Some(&nibble) = key_nibbles.get(key_index) else {
                     // We've consumed all key nibbles, value is in position 16
                     let value_rlp = rlp.at(16)
                         .map_err(|e| format!("Failed to get value at branch node {}: {}", i, e))?;
@@ -170,12 +158,10 @@ pub fn verify_proof(
                     let value: Vec<u8> = value_rlp.as_val()
                         .map_err(|e| format!("Failed to decode value at branch node {}: {}", i, e))?;
                     return Ok(value);
-                }
-
-                let nibble = key_nibbles[key_index] as usize;
+                };
                 key_index += 1;
 
-                let next = rlp.at(nibble)
+                let next = rlp.at(nibble as usize)
                     .map_err(|e| format!("Failed to get branch at nibble {} in node {}: {}", nibble, i, e))?;
                 if next.is_empty() {
                     return Err(format!("Empty branch at nibble {} in node {}", nibble, i));

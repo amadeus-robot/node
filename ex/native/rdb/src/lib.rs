@@ -13,7 +13,7 @@ use rustler::{
 
 pub use rust_rocksdb::{TransactionDB, MultiThreaded, TransactionDBOptions, Options,
     Transaction, TransactionOptions, WriteOptions, CompactOptions, BottommostLevelCompaction,
-    DBRawIteratorWithThreadMode, BoundColumnFamily, ReadOptions, SliceTransform,
+    DBRawIteratorWithThreadMode, BoundColumnFamily, ReadOptions,
     Cache, LruCacheOptions, BlockBasedOptions, DBCompressionType, BlockBasedIndexType,
     ColumnFamilyDescriptor, AsColumnFamilyRef};
 
@@ -195,12 +195,11 @@ fn open_transaction_db<'a>(env: Env<'a>, path: String, cf_names: Vec<String>) ->
     let mut block_based_options = BlockBasedOptions::default();
     block_based_options.set_block_cache(&block_cache);
 
-    block_based_options.set_bloom_filter(10.0, false);
     block_based_options.set_index_type(BlockBasedIndexType::TwoLevelIndexSearch);
+    block_based_options.set_partition_filters(true);
     block_based_options.set_cache_index_and_filter_blocks(true);
     block_based_options.set_cache_index_and_filter_blocks_with_high_priority(true);
     block_based_options.set_pin_top_level_index_and_filter(true);
-    block_based_options.set_partition_filters(true);
     block_based_options.set_pin_l0_filter_and_index_blocks_in_cache(false);
     cf_opts.set_block_based_table_factory(&block_based_options);
 
@@ -245,20 +244,7 @@ fn open_transaction_db<'a>(env: Env<'a>, path: String, cf_names: Vec<String>) ->
 
     let cf_descriptors: Vec<_> = cf_names
         .iter()
-        .map(|name| {
-            let mut opts = cf_opts.clone();
-
-            if name == "tx" {
-                opts.set_prefix_extractor(SliceTransform::create_fixed_prefix(8));
-                opts.set_memtable_prefix_bloom_ratio(0.1);
-            }
-            if name == "tx_filter" {
-                opts.set_prefix_extractor(SliceTransform::create_fixed_prefix(16));
-                opts.set_memtable_prefix_bloom_ratio(0.1);
-            }
-
-            ColumnFamilyDescriptor::new(name.as_str(), opts)
-        })
+        .map(|name| ColumnFamilyDescriptor::new(name.as_str(), cf_opts.clone()))
         .collect();
 
     match TransactionDB::open_cf_descriptors(&db_opts, &txn_db_opts, Path::new(&path), cf_descriptors) {
@@ -452,18 +438,6 @@ fn delete_cf(cf: ResourceArc<CfResource>, key: Binary) -> NifResult<Atom> {
         .delete_cf(&*cf, key.as_slice())
         .map(|_| atoms::ok())
         .map_err(to_nif_rdb_err)
-}
-
-#[rustler::nif]
-fn delete_range_cf(cf: ResourceArc<CfResource>, start_key: Binary, end_key: Binary, compact: bool) -> NifResult<Atom> {
-    cf.db.db
-        .delete_range_cf(&*cf, start_key.as_slice(), end_key.as_slice())
-        .map(|_| atoms::ok())
-        .map_err(to_nif_rdb_err);
-    if compact {
-        cf.db.db.compact_range_cf(&*cf, Option::<&[u8]>::None, Option::<&[u8]>::None);
-    }
-    Ok(atoms::ok())
 }
 
 #[rustler::nif]
@@ -1079,10 +1053,10 @@ fn mpt_verify_proof<'a>(env: Env<'a>, root: Binary, index: Term<'a>, proof: Vec<
     };
 
     // Convert proof nodes to Vec<Vec<u8>>
-    let proof_nodes: Vec<Vec<u8>> = proof.iter().map(|b| b.as_slice().to_vec()).collect();
+    let proof_nodes = proof.iter().map(|b| b.as_slice());
 
     // Verify the proof
-    match mpt::verify_proof(root.as_slice(), &index_bytes, &proof_nodes) {
+    match mpt::verify_proof(root.as_slice(), &index_bytes, proof_nodes) {
         Ok(value) => {
             let mut ob = OwnedBinary::new(value.len())
                 .ok_or_else(|| Error::Term(Box::new("alloc failed")))?;
@@ -1093,6 +1067,7 @@ fn mpt_verify_proof<'a>(env: Env<'a>, root: Binary, index: Term<'a>, proof: Vec<
             Ok((atoms::error(), e).encode(env))
         }
     }
+}
 fn build_tx_hashfilter<'a>(env: Env<'a>, signer: Binary<'a>, arg0: Binary<'a>, contract: Binary<'a>, function: Binary<'a>) -> Binary<'a> {
     let key = tx_filter::create_filter_key(&[&signer, &arg0, &contract, &function]);
     to_binary2(env, &key)
@@ -1100,12 +1075,6 @@ fn build_tx_hashfilter<'a>(env: Env<'a>, signer: Binary<'a>, arg0: Binary<'a>, c
 
 fn build_tx_hashfilters<'a>(env: Env<'a>, txus: Vec<Term<'a>>) -> NifResult<Vec<(Binary<'a>, Binary<'a>)>> {
     tx_filter::build_tx_hashfilters(env, txus)
-}
-
-#[rustler::nif]
-fn query_tx_hashfilter<'a>(env: Env<'a>, db: ResourceArc<DbResource>, signer: Binary<'a>, arg0: Binary<'a>, contract: Binary<'a>, function: Binary<'a>,
-    limit: u32, sort: bool, cursor: Option<Binary<'a>>) -> NifResult<(Option<Binary<'a>>, Vec<Binary<'a>>)> {
-    tx_filter::query_tx_hashfilter(env, &db.db, &signer, &arg0, &contract, &function, limit as usize, sort, cursor.map(|b| b.as_slice()))
 }
 
 rustler::init!("Elixir.RDB", load = on_load);
