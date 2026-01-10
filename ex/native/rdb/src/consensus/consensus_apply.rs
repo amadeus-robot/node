@@ -768,6 +768,14 @@ pub fn call_bic(env: &mut ApplyEnv, contract: Vec<u8>, function: Vec<u8>, args: 
 
         (b"Coin", b"transfer") => consensus::bic::coin::call_transfer(env, args),
 
+        (b"Lockup", b"lock") => consensus::bic::lockup::call_lock(env, args),
+        (b"Lockup", b"unlock") => consensus::bic::lockup::call_unlock(env, args),
+        
+        (b"LockupPrime", b"lock") => consensus::bic::lockup_prime::call_lock(env, args),
+        (b"LockupPrime", b"unlock") => consensus::bic::lockup_prime::call_unlock(env, args),
+        (b"LockupPrime", b"daily_checkin") => consensus::bic::lockup_prime::call_daily_checkin(env, args),
+        _ => std::panic::panic_any("invalid_bic_action")
+
         /*
         (b"Coin", b"create_and_mint") => consensus::bic::coin::call_create_and_mint(env, args),
         (b"Coin", b"mint") => consensus::bic::coin::call_mint(env, args),
@@ -775,18 +783,11 @@ pub fn call_bic(env: &mut ApplyEnv, contract: Vec<u8>, function: Vec<u8>, args: 
         (b"Nft", b"transfer") => consensus::bic::nft::call_transfer(env, args),
         (b"Nft", b"create_collection") => consensus::bic::nft::call_create_collection(env, args),
         (b"Nft", b"mint") => consensus::bic::nft::call_mint(env, args),
-        (b"Lockup", b"lock") => consensus::bic::lockup::call_lock(env, args),
-        (b"Lockup", b"unlock") => consensus::bic::lockup::call_unlock(env, args),
         (b"Contract", b"deploy") => {
                 consensus_kv::exec_budget_decr(env, protocol::COST_PER_DEPLOY);
                 consensus::bic::contract::call_deploy(env, args)
         },
-        (b"LockupPrime", b"lock") => consensus::bic::lockup_prime::call_lock(env, args),
-        (b"LockupPrime", b"unlock") => consensus::bic::lockup_prime::call_unlock(env, args),
-        (b"LockupPrime", b"daily_checkin") => consensus::bic::lockup_prime::call_daily_checkin(env, args),
-        */
-
-        _ => std::panic::panic_any("invalid_bic_action")
+        */        
     }
 }
 

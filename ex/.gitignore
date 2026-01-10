@@ -1,3 +1,6 @@
 _build/
 deps/
+target/
 priv/index.html
+priv/native/*.so
+amadeusd

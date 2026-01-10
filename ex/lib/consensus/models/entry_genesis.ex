@@ -182,7 +182,7 @@ defmodule EntryGenesis do
         pop = BlsEx.sign!(sk, pk, BLS12AggSig.dst_pop())
 
         DB.Entry.insert(entry_signed, %{rtx: rtx})
-        DB.Entry.apply_into_main_chain(entry_signed, mutations_hash, [], [], "", "", %{rtx: rtx})
+        DB.Entry.apply_into_main_chain(entry_signed, mutations_hash, [], {[], []}, "", "", %{rtx: rtx})
         RocksDB.put("temporal_tip", entry_signed.hash, %{rtx: rtx, cf: cf.sysconf})
         RocksDB.put("rooted_tip", entry_signed.hash, %{rtx: rtx, cf: cf.sysconf})
 
